@@ -6,7 +6,6 @@ import java.time.LocalDateTime;
 
 @Entity
 public class Organization {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
