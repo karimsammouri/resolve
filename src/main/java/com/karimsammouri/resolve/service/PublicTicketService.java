@@ -1,5 +1,7 @@
 package com.karimsammouri.resolve.service;
 
+import com.karimsammouri.resolve.dto.ViewMessageResponse;
+import com.karimsammouri.resolve.dto.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.CustomerTicketAccess;
 import com.karimsammouri.resolve.entity.Message;
 import com.karimsammouri.resolve.entity.Organization;
@@ -15,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+
+import java.util.List;
 
 @Service
 public class PublicTicketService {
@@ -77,5 +81,34 @@ public class PublicTicketService {
         });
 
         return ticketId;
+    }
+
+    public ViewTicketResponse viewTicket(Long ticketId, String token) {
+        // Validate customer token
+        String tokenHash = tokenService.hashToken(token);
+        ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
+                .orElseThrow(() -> new EntityNotFoundException("Invalid or expired access token"));
+
+        // Retrieve and map messages to DTOs
+        List<Message> messages = messageRepo.findByTicket_IdAndIsInternalNoteFalseOrderByCreatedAtAsc(ticketId);
+        List<ViewMessageResponse> messageResponses = messages.stream()
+                .map(message -> new ViewMessageResponse(
+                        message.getId(),
+                        message.getSenderType().name(),
+                        message.getSenderName(),
+                        message.getBody(),
+                        message.getCreatedAt()
+                )).toList();
+
+        // Retrieve and return ticket and associated messages
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+        return new ViewTicketResponse(
+                ticketId,
+                ticket.getSubject(),
+                ticket.getStatus().name(),
+                ticket.getCustomerName(),
+                ticket.getCustomerEmail(),
+                messageResponses);
     }
 }

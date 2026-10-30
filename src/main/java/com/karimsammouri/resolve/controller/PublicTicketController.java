@@ -1,6 +1,7 @@
 package com.karimsammouri.resolve.controller;
 
-import com.karimsammouri.resolve.dto.CreateTicketRequestDTO;
+import com.karimsammouri.resolve.dto.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.ViewTicketResponse;
 import com.karimsammouri.resolve.service.PublicTicketService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -15,11 +16,17 @@ public class PublicTicketController {
 
     @PostMapping("/api/public/organizations/{slug}/tickets")
     public Long createTicket(@PathVariable("slug") String organizationSlug,
-                             @Valid @RequestBody CreateTicketRequestDTO request) {
+                             @Valid @RequestBody CreateTicketRequest request) {
         return ticketService.createTicket(organizationSlug,
                 request.customerName(),
                 request.customerEmail(),
                 request.messageSubject(),
                 request.messageBody());
+    }
+
+    @GetMapping("/api/public/tickets/{ticketId}")
+    public ViewTicketResponse viewTicket(@PathVariable Long ticketId,
+                                         @RequestParam String token) {
+        return ticketService.viewTicket(ticketId, token);
     }
 }

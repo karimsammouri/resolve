@@ -41,8 +41,7 @@ public class EmailService {
                 customerName,
                 ticketId,
                 ticketSubject,
-                accessLink
-        ));
+                accessLink));
 
         mailSender.send(message);
     }
