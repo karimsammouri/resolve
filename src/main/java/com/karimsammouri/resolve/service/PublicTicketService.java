@@ -7,6 +7,7 @@ import com.karimsammouri.resolve.entity.Message;
 import com.karimsammouri.resolve.entity.Organization;
 import com.karimsammouri.resolve.entity.Ticket;
 import com.karimsammouri.resolve.enums.MessageSenderType;
+import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.repository.CustomerTicketAccessRepository;
 import com.karimsammouri.resolve.repository.MessageRepository;
 import com.karimsammouri.resolve.repository.OrganizationRepository;
@@ -18,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -110,5 +113,32 @@ public class PublicTicketService {
                 ticket.getCustomerName(),
                 ticket.getCustomerEmail(),
                 messageResponses);
+    }
+
+    @Transactional
+    public Long addMessage(Long ticketId, String token, String body) {
+        // Validate customer token
+        String tokenHash = tokenService.hashToken(token);
+        ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
+                .orElseThrow(() -> new EntityNotFoundException("Invalid or expired access token"));
+
+        // Retrieve ticket
+        Ticket ticket = ticketRepo.findById(ticketId)
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+
+        // Prevent messages to resolved tickets
+        if (ticket.getStatus() == TicketStatus.RESOLVED) {
+            throw new IllegalStateException("Cannot add message to ticket marked resolved");
+        }
+
+        // Create and save message
+        Message message = new Message(ticket, MessageSenderType.CUSTOMER, null, ticket.getCustomerName(), body, false);
+        messageRepo.save(message);
+
+        // Update ticket
+        ticket.setHasUnreadCustomerMessage(true);
+        ticket.setUpdatedAt(LocalDateTime.now());
+
+        return message.getId();
     }
 }
