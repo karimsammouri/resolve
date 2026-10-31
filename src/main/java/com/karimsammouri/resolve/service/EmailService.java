@@ -21,7 +21,7 @@ public class EmailService {
         SimpleMailMessage message = new SimpleMailMessage();
 
         message.setTo(customerEmail);
-        message.setSubject("We received your support request: " + ticketSubject);
+        message.setSubject("We received your support request: " + ticketSubject + " (#" + ticketId + ")");
         message.setText("""
                 Hi %s,
                 
@@ -42,6 +42,37 @@ public class EmailService {
                 ticketId,
                 ticketSubject,
                 accessLink));
+
+        mailSender.send(message);
+    }
+
+    public void sendAgentReplyEmail(String customerEmail,
+                                    String customerName,
+                                    Long ticketId,
+                                    String ticketSubject) {
+
+        SimpleMailMessage message = new SimpleMailMessage();
+
+        message.setTo(customerEmail);
+        message.setSubject("There's an update on your support request: " + ticketSubject + " (#" + ticketId + ")");
+        message.setText("""
+                Hi %s,
+                
+                An agent has replied to your support request.
+                
+                Ticket number: #%d
+                Subject: %s
+                
+                To view the reply and respond, please use the private link in your original confirmation email.
+                
+                If you cannot find that email, please contact our support team for assistance.
+                
+                Thank you,
+                Resolve Support
+                """.formatted(
+                customerName,
+                ticketId,
+                ticketSubject));
 
         mailSender.send(message);
     }

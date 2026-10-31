@@ -10,17 +10,18 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/api/public")
 public class PublicTicketController {
-    private final PublicTicketService ticketService;
+    private final PublicTicketService publicTicketService;
 
-    public PublicTicketController(PublicTicketService ticketService) {
-        this.ticketService = ticketService;
+    public PublicTicketController(PublicTicketService publicTicketService) {
+        this.publicTicketService = publicTicketService;
     }
 
-    @PostMapping("/api/public/organizations/{slug}/tickets")
+    @PostMapping("/organizations/{slug}/tickets")
     public ResponseEntity<Long> createTicket(@PathVariable("slug") String organizationSlug,
                                              @Valid @RequestBody CreateTicketRequest request) {
-        Long ticketId = ticketService.createTicket(
+        Long ticketId = publicTicketService.createTicket(
                 organizationSlug,
                 request.customerName(),
                 request.customerEmail(),
@@ -31,17 +32,17 @@ public class PublicTicketController {
                 .body(ticketId);
     }
 
-    @GetMapping("/api/public/tickets/{ticketId}")
+    @GetMapping("/tickets/{ticketId}")
     public ViewTicketResponse viewTicket(@PathVariable Long ticketId,
                                          @RequestParam String token) {
-        return ticketService.viewTicket(ticketId, token);
+        return publicTicketService.viewTicket(ticketId, token);
     }
 
-    @PostMapping("/api/public/tickets/{ticketId}/messages")
+    @PostMapping("/tickets/{ticketId}/messages")
     public ResponseEntity<Long> addMessage(@PathVariable Long ticketId,
                                            @RequestParam String token,
                                            @Valid @RequestBody AddMessageRequest request) {
-        Long messageId = ticketService.addMessage(ticketId, token, request.body());
+        Long messageId = publicTicketService.addMessage(ticketId, token, request.body());
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageId);

@@ -2,31 +2,53 @@ package com.karimsammouri.resolve.service;
 
 import com.karimsammouri.resolve.dto.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.AgentTicketResponse;
+import com.karimsammouri.resolve.dto.AgentTicketSummaryResponse;
 import com.karimsammouri.resolve.entity.Message;
 import com.karimsammouri.resolve.entity.Ticket;
+import com.karimsammouri.resolve.entity.TicketStatusHistory;
 import com.karimsammouri.resolve.entity.User;
+import com.karimsammouri.resolve.enums.MessageSenderType;
+import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.repository.MessageRepository;
 import com.karimsammouri.resolve.repository.TicketRepository;
+import com.karimsammouri.resolve.repository.TicketStatusHistoryRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 public class AgentTicketService {
     private final TicketRepository ticketRepo;
     private final MessageRepository messageRepo;
+    private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
+
+    private final EmailService emailService;
 
     public AgentTicketService(TicketRepository ticketRepo,
-                              MessageRepository messageRepo) {
+                              MessageRepository messageRepo,
+                              TicketStatusHistoryRepository ticketStatusHistoryRepo,
+                              EmailService emailService) {
         this.ticketRepo = ticketRepo;
+        this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
         this.messageRepo = messageRepo;
+        this.emailService = emailService;
     }
 
     public AgentTicketResponse viewTicket(Long ticketId, User user) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+
+        // Mark customer messages as read
+        ticket.setHasUnreadCustomerMessage(false);
+        ticketRepo.save(ticket);
 
         // Retrieve and map messages to DTOs
         List<Message> messages = messageRepo.findByTicket_IdOrderByCreatedAtAsc(ticketId);
@@ -52,5 +74,61 @@ public class AgentTicketService {
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt(),
                 messageResponses);
+    }
+
+    public Page<AgentTicketSummaryResponse> viewTickets(User user, Pageable pageable) {
+        // Retrieve and return tickets scoped to user's organization
+        Page<Ticket> tickets = ticketRepo.findByOrganization_Id(user.getOrganization().getId(), pageable);
+
+        return tickets.map(ticket -> new AgentTicketSummaryResponse(
+                ticket.getId(),
+                ticket.getSubject(),
+                ticket.getStatus().name(),
+                ticket.getCustomerName(),
+                ticket.getCustomerEmail(),
+                ticket.getAssignedAgent() != null ?
+                        ticket.getAssignedAgent().getName() : null,
+                ticket.hasUnreadCustomerMessage(),
+                ticket.getCreatedAt(),
+                ticket.getUpdatedAt()));
+    }
+
+    @Transactional
+    public Long addMessage(Long ticketId,
+                           User user,
+                           String body,
+                           boolean isInternalNote) {
+        // Retrieve and validate ticket access
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+
+        // Prevent messages to archived tickets; reopen ticket if marked resolved
+        if (ticket.getStatus() == TicketStatus.ARCHIVED) {
+            throw new IllegalStateException("Cannot add message to an archived ticket");
+        } else if (ticket.getStatus() == TicketStatus.RESOLVED && !isInternalNote) {
+            TicketStatus oldStatus = ticket.getStatus();
+            ticket.setStatus(TicketStatus.OPEN);
+            ticketStatusHistoryRepo.save(
+                    new TicketStatusHistory(ticket, oldStatus, TicketStatus.OPEN, user));
+        }
+
+        // Create and save message
+        Message message = new Message(ticket, MessageSenderType.STAFF, user, user.getName(), body, isInternalNote);
+        messageRepo.save(message);
+
+        // Update ticket
+        ticket.setUpdatedAt(LocalDateTime.now());
+
+        // Send email to notify customer of agent reply if not internal note
+        if (!isInternalNote) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    emailService.sendAgentReplyEmail(ticket.getCustomerEmail(), ticket.getCustomerName(), ticketId, ticket.getSubject());
+                }
+            });
+        }
+
+        return message.getId();
     }
 }

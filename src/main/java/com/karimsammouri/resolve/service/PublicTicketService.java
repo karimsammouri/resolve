@@ -2,16 +2,10 @@ package com.karimsammouri.resolve.service;
 
 import com.karimsammouri.resolve.dto.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.ViewTicketResponse;
-import com.karimsammouri.resolve.entity.CustomerTicketAccess;
-import com.karimsammouri.resolve.entity.Message;
-import com.karimsammouri.resolve.entity.Organization;
-import com.karimsammouri.resolve.entity.Ticket;
+import com.karimsammouri.resolve.entity.*;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
-import com.karimsammouri.resolve.repository.CustomerTicketAccessRepository;
-import com.karimsammouri.resolve.repository.MessageRepository;
-import com.karimsammouri.resolve.repository.OrganizationRepository;
-import com.karimsammouri.resolve.repository.TicketRepository;
+import com.karimsammouri.resolve.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -19,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -29,6 +22,7 @@ public class PublicTicketService {
 
     private final OrganizationRepository organizationRepo;
     private final TicketRepository ticketRepo;
+    private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
     private final MessageRepository messageRepo;
     private final CustomerTicketAccessRepository ticketAccessRepo;
 
@@ -38,6 +32,7 @@ public class PublicTicketService {
     public PublicTicketService(@Value("${resolve.app.base-url}") String baseUrl,
                                OrganizationRepository organizationRepo,
                                TicketRepository ticketRepo,
+                               TicketStatusHistoryRepository ticketStatusHistoryRepo,
                                MessageRepository messageRepo,
                                CustomerTicketAccessRepository ticketAccessRepo,
                                TokenService tokenService,
@@ -45,6 +40,7 @@ public class PublicTicketService {
         this.baseUrl = baseUrl;
         this.organizationRepo = organizationRepo;
         this.ticketRepo = ticketRepo;
+        this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
         this.messageRepo = messageRepo;
         this.ticketAccessRepo = ticketAccessRepo;
         this.tokenService = tokenService;
@@ -126,9 +122,14 @@ public class PublicTicketService {
         Ticket ticket = ticketRepo.findById(ticketId)
                 .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
 
-        // Prevent messages to resolved tickets
-        if (ticket.getStatus() == TicketStatus.RESOLVED) {
-            throw new IllegalStateException("Cannot add message to ticket marked resolved");
+        // Prevent messages to archived tickets; reopen ticket if marked resolved
+        if (ticket.getStatus() == TicketStatus.ARCHIVED) {
+            throw new IllegalStateException("Cannot add message to an archived ticket");
+        } else if (ticket.getStatus() == TicketStatus.RESOLVED) {
+            TicketStatus oldStatus = ticket.getStatus();
+            ticket.setStatus(TicketStatus.OPEN);
+            ticketStatusHistoryRepo.save(
+                    new TicketStatusHistory(ticket, oldStatus, TicketStatus.OPEN, null));
         }
 
         // Create and save message
