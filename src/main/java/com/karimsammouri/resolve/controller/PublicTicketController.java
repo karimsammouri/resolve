@@ -21,12 +21,7 @@ public class PublicTicketController {
     @PostMapping("/organizations/{slug}/tickets")
     public ResponseEntity<Long> createTicket(@PathVariable("slug") String organizationSlug,
                                              @Valid @RequestBody CreateTicketRequest request) {
-        Long ticketId = publicTicketService.createTicket(
-                organizationSlug,
-                request.customerName(),
-                request.customerEmail(),
-                request.messageSubject(),
-                request.messageBody());
+        Long ticketId = publicTicketService.createTicket(organizationSlug, request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ticketId);
@@ -42,7 +37,7 @@ public class PublicTicketController {
     public ResponseEntity<Long> addMessage(@PathVariable Long ticketId,
                                            @RequestParam String token,
                                            @Valid @RequestBody AddMessageRequest request) {
-        Long messageId = publicTicketService.addMessage(ticketId, token, request.body());
+        Long messageId = publicTicketService.addMessage(ticketId, token, request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageId);

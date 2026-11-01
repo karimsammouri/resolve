@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/agent")
 public class AgentTicketController {
     private final AgentTicketService agentTicketService;
+
     private final UserRepository userRepository;
 
     public AgentTicketController(AgentTicketService agentTicketService, UserRepository userRepository) {
@@ -55,7 +56,7 @@ public class AgentTicketController {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
-        Long messageId = agentTicketService.addMessage(ticketId, user, request.body(), request.isInternalNote());
+        Long messageId = agentTicketService.addMessage(ticketId, user, request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageId);

@@ -1,5 +1,6 @@
 package com.karimsammouri.resolve.service;
 
+import com.karimsammouri.resolve.dto.AgentMessageRequest;
 import com.karimsammouri.resolve.dto.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.AgentTicketSummaryResponse;
@@ -27,23 +28,23 @@ import java.util.Objects;
 
 @Service
 public class AgentTicketService {
+    private final EmailService emailService;
+
     private final UserRepository userRepo;
     private final TicketRepository ticketRepo;
     private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
     private final MessageRepository messageRepo;
 
-    private final EmailService emailService;
-
-    public AgentTicketService(UserRepository userRepo,
+    public AgentTicketService(EmailService emailService,
+                              UserRepository userRepo,
                               TicketRepository ticketRepo,
                               MessageRepository messageRepo,
-                              TicketStatusHistoryRepository ticketStatusHistoryRepo,
-                              EmailService emailService) {
+                              TicketStatusHistoryRepository ticketStatusHistoryRepo) {
+        this.emailService = emailService;
         this.userRepo = userRepo;
         this.ticketRepo = ticketRepo;
         this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
         this.messageRepo = messageRepo;
-        this.emailService = emailService;
     }
 
     public AgentTicketResponse viewTicket(Long ticketId, User user) {
@@ -99,7 +100,7 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public Long addMessage(Long ticketId, User user, String body, boolean isInternalNote) {
+    public Long addMessage(Long ticketId, User user, AgentMessageRequest request) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
@@ -107,7 +108,7 @@ public class AgentTicketService {
         // Prevent messages to archived tickets; reopen ticket if marked resolved
         if (ticket.getStatus() == TicketStatus.ARCHIVED) {
             throw new IllegalStateException("Cannot add message to an archived ticket");
-        } else if (ticket.getStatus() == TicketStatus.RESOLVED && !isInternalNote) {
+        } else if (ticket.getStatus() == TicketStatus.RESOLVED && !request.isInternalNote()) {
             TicketStatus oldStatus = ticket.getStatus();
             ticket.setStatus(TicketStatus.OPEN);
             ticket.setResolvedAt(null);
@@ -116,14 +117,20 @@ public class AgentTicketService {
         }
 
         // Create and save message
-        Message message = new Message(ticket, MessageSenderType.STAFF, user, user.getName(), body, isInternalNote);
+        Message message = new Message(
+                ticket,
+                MessageSenderType.STAFF,
+                user,
+                user.getName(),
+                request.body(),
+                request.isInternalNote());
         messageRepo.save(message);
 
         // Update ticket
         ticket.setUpdatedAt(LocalDateTime.now());
 
         // Send email to notify customer of agent reply if not internal note
-        if (!isInternalNote) {
+        if (!request.isInternalNote()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {

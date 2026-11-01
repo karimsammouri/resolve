@@ -1,5 +1,7 @@
 package com.karimsammouri.resolve.service;
 
+import com.karimsammouri.resolve.dto.AddMessageRequest;
+import com.karimsammouri.resolve.dto.CreateTicketRequest;
 import com.karimsammouri.resolve.dto.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
@@ -20,47 +22,53 @@ import java.util.List;
 public class PublicTicketService {
     private final String baseUrl;
 
+    private final TokenService tokenService;
+    private final EmailService emailService;
+
     private final OrganizationRepository organizationRepo;
     private final TicketRepository ticketRepo;
     private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
     private final MessageRepository messageRepo;
     private final CustomerTicketAccessRepository ticketAccessRepo;
 
-    private final TokenService tokenService;
-    private final EmailService emailService;
-
     public PublicTicketService(@Value("${resolve.app.base-url}") String baseUrl,
+                               TokenService tokenService,
+                               EmailService emailService,
                                OrganizationRepository organizationRepo,
                                TicketRepository ticketRepo,
                                TicketStatusHistoryRepository ticketStatusHistoryRepo,
                                MessageRepository messageRepo,
-                               CustomerTicketAccessRepository ticketAccessRepo,
-                               TokenService tokenService,
-                               EmailService emailService) {
+                               CustomerTicketAccessRepository ticketAccessRepo) {
         this.baseUrl = baseUrl;
+        this.tokenService = tokenService;
+        this.emailService = emailService;
         this.organizationRepo = organizationRepo;
         this.ticketRepo = ticketRepo;
         this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
         this.messageRepo = messageRepo;
         this.ticketAccessRepo = ticketAccessRepo;
-        this.tokenService = tokenService;
-        this.emailService = emailService;
     }
 
     @Transactional
-    public Long createTicket(String organizationSlug,
-                             String customerName,
-                             String customerEmail,
-                             String messageSubject,
-                             String messageBody) {
+    public Long createTicket(String organizationSlug, CreateTicketRequest request) {
         // Retrieve and validate organization by slug
         Organization organization = organizationRepo.findBySlug(organizationSlug)
                 .orElseThrow(() -> new EntityNotFoundException("Organization not found: " + organizationSlug));
 
         // Create and save message and ticket with given data
-        Ticket ticket = new Ticket(messageSubject, customerName, customerEmail, organization);
+        Ticket ticket = new Ticket(
+                request.messageSubject(),
+                request.customerName(),
+                request.customerEmail(),
+                organization);
         ticketRepo.save(ticket);
-        Message message = new Message(ticket, MessageSenderType.CUSTOMER, null, customerName, messageBody, false);
+        Message message = new Message(
+                ticket,
+                MessageSenderType.CUSTOMER,
+                null,
+                request.customerName(),
+                request.messageBody(),
+                false);
         messageRepo.save(message);
 
         // Create and save CustomerTicketAccess for customer
@@ -75,7 +83,12 @@ public class PublicTicketService {
             @Override
             public void afterCommit() {
                 String accessLink = baseUrl + "/api/public/tickets/" + ticketId + "?token=" + token;
-                emailService.sendTicketConfirmation(customerEmail, customerName, ticketId, messageSubject, accessLink);
+                emailService.sendTicketConfirmation(
+                        request.customerEmail(),
+                        request.customerName(),
+                        ticketId,
+                        request.messageSubject(),
+                        accessLink);
             }
         });
 
@@ -112,7 +125,7 @@ public class PublicTicketService {
     }
 
     @Transactional
-    public Long addMessage(Long ticketId, String token, String body) {
+    public Long addMessage(Long ticketId, String token, AddMessageRequest request) {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
         ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
@@ -134,7 +147,13 @@ public class PublicTicketService {
         }
 
         // Create and save message
-        Message message = new Message(ticket, MessageSenderType.CUSTOMER, null, ticket.getCustomerName(), body, false);
+        Message message = new Message(
+                ticket,
+                MessageSenderType.CUSTOMER,
+                null,
+                ticket.getCustomerName(),
+                request.body(),
+                false);
         messageRepo.save(message);
 
         // Update ticket
