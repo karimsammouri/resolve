@@ -4,6 +4,7 @@ import com.karimsammouri.resolve.dto.AgentMessageRequest;
 import com.karimsammouri.resolve.dto.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.AgentTicketSummaryResponse;
 import com.karimsammouri.resolve.entity.User;
+import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.repository.UserRepository;
 import com.karimsammouri.resolve.service.AgentTicketService;
 import jakarta.persistence.EntityNotFoundException;
@@ -58,5 +59,29 @@ public class AgentTicketController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(messageId);
+    }
+
+    @PatchMapping("/tickets/{ticketId}/status")
+    public ResponseEntity<Long> changeStatus(@PathVariable Long ticketId,
+                                             @RequestParam Long userId,
+                                             @RequestParam TicketStatus targetStatus) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        Long updatedTicketId = agentTicketService.changeStatus(ticketId, user, targetStatus);
+
+        return ResponseEntity.ok(updatedTicketId);
+    }
+
+    @PatchMapping("/tickets/{ticketId}/assignedAgent")
+    public ResponseEntity<Long> assignAgent(@PathVariable Long ticketId,
+                                            @RequestParam Long userId,
+                                            @RequestParam(required = false) Long assignedAgentId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
+
+        Long updatedTicketId = agentTicketService.assignAgent(ticketId, user, assignedAgentId);
+
+        return ResponseEntity.ok(updatedTicketId);
     }
 }

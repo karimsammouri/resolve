@@ -12,6 +12,7 @@ import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.repository.MessageRepository;
 import com.karimsammouri.resolve.repository.TicketRepository;
 import com.karimsammouri.resolve.repository.TicketStatusHistoryRepository;
+import com.karimsammouri.resolve.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,19 +23,23 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class AgentTicketService {
+    private final UserRepository userRepo;
     private final TicketRepository ticketRepo;
-    private final MessageRepository messageRepo;
     private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
+    private final MessageRepository messageRepo;
 
     private final EmailService emailService;
 
-    public AgentTicketService(TicketRepository ticketRepo,
+    public AgentTicketService(UserRepository userRepo,
+                              TicketRepository ticketRepo,
                               MessageRepository messageRepo,
                               TicketStatusHistoryRepository ticketStatusHistoryRepo,
                               EmailService emailService) {
+        this.userRepo = userRepo;
         this.ticketRepo = ticketRepo;
         this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
         this.messageRepo = messageRepo;
@@ -94,11 +99,8 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public Long addMessage(Long ticketId,
-                           User user,
-                           String body,
-                           boolean isInternalNote) {
-        // Retrieve and validate ticket access
+    public Long addMessage(Long ticketId, User user, String body, boolean isInternalNote) {
+        // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
 
@@ -108,6 +110,7 @@ public class AgentTicketService {
         } else if (ticket.getStatus() == TicketStatus.RESOLVED && !isInternalNote) {
             TicketStatus oldStatus = ticket.getStatus();
             ticket.setStatus(TicketStatus.OPEN);
+            ticket.setResolvedAt(null);
             ticketStatusHistoryRepo.save(
                     new TicketStatusHistory(ticket, oldStatus, TicketStatus.OPEN, user));
         }
@@ -124,11 +127,65 @@ public class AgentTicketService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    emailService.sendAgentReplyEmail(ticket.getCustomerEmail(), ticket.getCustomerName(), ticketId, ticket.getSubject());
+                    emailService.sendAgentReplyEmail(
+                            ticket.getCustomerEmail(), ticket.getCustomerName(), ticketId, ticket.getSubject());
                 }
             });
         }
 
         return message.getId();
+    }
+
+    @Transactional
+    public Long changeStatus(Long ticketId, User user, TicketStatus targetStatus) {
+        // Retrieve ticket scoped to user's organization
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+
+        // Only update if ticket status actually changes
+        if (ticket.getStatus() != targetStatus) {
+            TicketStatus oldStatus = ticket.getStatus();
+            LocalDateTime now = LocalDateTime.now();
+
+            ticket.setStatus(targetStatus);
+            ticket.setUpdatedAt(now);
+
+            if (targetStatus == TicketStatus.RESOLVED) {
+                ticket.setResolvedAt(now);
+            } else {
+                ticket.setResolvedAt(null);
+            }
+
+            // Record status transition
+            ticketStatusHistoryRepo.save(
+                    new TicketStatusHistory(ticket, oldStatus, targetStatus, user));
+        }
+
+        return ticketId;
+    }
+
+    @Transactional
+    public Long assignAgent(Long ticketId, User user, Long targetAgentId) {
+        // Retrieve ticket scoped to user's organization
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+        Long assignedAgentId = ticket.getAssignedAgent() != null ?
+                ticket.getAssignedAgent().getId() : null;
+
+        // Only update if assignment changes
+        if (!Objects.equals(assignedAgentId, targetAgentId)) {
+            User targetAgent = null;
+
+            // Retrieve target agent if assigning (not unassigning)
+            if (targetAgentId != null) {
+                targetAgent = userRepo.findByIdAndOrganization_Id(targetAgentId, user.getOrganization().getId())
+                        .orElseThrow(() -> new EntityNotFoundException("User not found: #" + targetAgentId));
+            }
+
+            ticket.setAssignedAgent(targetAgent);
+            ticket.setUpdatedAt(LocalDateTime.now());
+        }
+
+        return ticketId;
     }
 }

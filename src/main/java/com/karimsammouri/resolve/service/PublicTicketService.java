@@ -128,6 +128,7 @@ public class PublicTicketService {
         } else if (ticket.getStatus() == TicketStatus.RESOLVED) {
             TicketStatus oldStatus = ticket.getStatus();
             ticket.setStatus(TicketStatus.OPEN);
+            ticket.setResolvedAt(null);
             ticketStatusHistoryRepo.save(
                     new TicketStatusHistory(ticket, oldStatus, TicketStatus.OPEN, null));
         }

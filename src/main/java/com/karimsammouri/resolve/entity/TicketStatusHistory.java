@@ -23,8 +23,8 @@ public class TicketStatusHistory {
     @Column(nullable = false, updatable = false)
     private TicketStatus newStatus;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "updated_by_user_id", nullable = false, updatable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "updated_by_user_id", updatable = false)
     private User updatedByUser;
 
     @Column(nullable = false, updatable = false)
