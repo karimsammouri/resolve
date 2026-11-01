@@ -1,8 +1,11 @@
 package com.karimsammouri.resolve.service;
 
 import com.karimsammouri.resolve.dto.CreateUserRequest;
+import com.karimsammouri.resolve.dto.ViewUserResponse;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,5 +35,17 @@ public class AdminService {
         userRepo.save(newUser);
 
         return newUser.getId();
+    }
+
+    public Page<ViewUserResponse> viewUsers(User admin, Pageable pageable) {
+        // Retrieve and return users scoped to admin's organization
+        Page<User> users = userRepo.findByOrganization_Id(admin.getOrganization().getId(), pageable);
+
+        return users.map(user -> new ViewUserResponse(
+                user.getName(),
+                user.getEmail(),
+                user.getRole(),
+                user.isEnabled(),
+                user.getCreatedAt()));
     }
 }
