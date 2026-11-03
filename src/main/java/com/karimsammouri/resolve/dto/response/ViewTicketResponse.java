@@ -1,4 +1,4 @@
-package com.karimsammouri.resolve.dto;
+package com.karimsammouri.resolve.dto.response;
 
 import java.util.List;
 

@@ -1,11 +1,11 @@
 package com.karimsammouri.resolve.controller;
 
-import com.karimsammouri.resolve.dto.CreateUserRequest;
-import com.karimsammouri.resolve.dto.UpdateUserRequest;
-import com.karimsammouri.resolve.dto.ViewUserResponse;
+import com.karimsammouri.resolve.dto.request.CreateUserRequest;
+import com.karimsammouri.resolve.dto.request.UpdateUserRequest;
+import com.karimsammouri.resolve.dto.response.ViewUserResponse;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.enums.UserRole;
-import com.karimsammouri.resolve.repository.UserRepository;
+import com.karimsammouri.resolve.security.ResolveUserDetails;
 import com.karimsammouri.resolve.service.AdminService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
@@ -13,6 +13,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,57 +21,32 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
     private final AdminService adminService;
 
-    private final UserRepository userRepo;
-
-    public AdminController(AdminService adminService,
-                           UserRepository userRepo) {
+    public AdminController(AdminService adminService) {
         this.adminService = adminService;
-        this.userRepo = userRepo;
     }
 
     @PostMapping("/users")
-    public ResponseEntity<Long> createUser(@RequestParam Long adminId,
+    public ResponseEntity<Long> createUser(@AuthenticationPrincipal ResolveUserDetails principal,
                                            @Valid @RequestBody CreateUserRequest request) {
-        User admin = userRepo.findById(adminId)
-                .orElseThrow(() -> new EntityNotFoundException("Admin not found"));
-
-        if (!admin.isEnabled() || admin.getRole() != UserRole.ADMINISTRATOR) {
-            throw new SecurityException("This operation cannot be performed");
-        }
-
-        Long newUserId = adminService.createUser(admin, request);
+        Long newUserId = adminService.createUser(principal.getUser(), request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(newUserId);
     }
 
     @GetMapping("/users")
-    public ResponseEntity<Page<ViewUserResponse>> viewUsers(@RequestParam Long adminId,
+    public ResponseEntity<Page<ViewUserResponse>> viewUsers(@AuthenticationPrincipal ResolveUserDetails principal,
                                                             Pageable pageable) {
-        User admin = userRepo.findById(adminId)
-                .orElseThrow(() -> new EntityNotFoundException("Admin not found"));
-
-        if (!admin.isEnabled() || admin.getRole() != UserRole.ADMINISTRATOR) {
-            throw new SecurityException("This operation cannot be performed");
-        }
-
-        Page<ViewUserResponse> response = adminService.viewUsers(admin, pageable);
+        Page<ViewUserResponse> response = adminService.viewUsers(principal.getUser(), pageable);
 
         return ResponseEntity.ok(response);
     }
 
     @PatchMapping("/users/{userId}")
     public ResponseEntity<Long> updateUser(@PathVariable Long userId,
-                                           @RequestParam Long adminId,
+                                           @AuthenticationPrincipal ResolveUserDetails principal,
                                            @RequestBody UpdateUserRequest request) {
-        User admin = userRepo.findById(adminId)
-                .orElseThrow(() -> new EntityNotFoundException("Admin not found"));
-
-        if (!admin.isEnabled() || admin.getRole() != UserRole.ADMINISTRATOR) {
-            throw new SecurityException("This operation cannot be performed");
-        }
-
-        Long updatedUserId = adminService.updateUser(userId, admin, request);
+        Long updatedUserId = adminService.updateUser(userId, principal.getUser(), request);
 
         return ResponseEntity.ok(updatedUserId);
     }

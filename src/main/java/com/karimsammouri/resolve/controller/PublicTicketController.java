@@ -1,8 +1,8 @@
 package com.karimsammouri.resolve.controller;
 
-import com.karimsammouri.resolve.dto.AddMessageRequest;
-import com.karimsammouri.resolve.dto.CreateTicketRequest;
-import com.karimsammouri.resolve.dto.ViewTicketResponse;
+import com.karimsammouri.resolve.dto.request.AddMessageRequest;
+import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.service.PublicTicketService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;

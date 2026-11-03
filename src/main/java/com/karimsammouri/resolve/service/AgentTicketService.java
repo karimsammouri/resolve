@@ -1,9 +1,9 @@
 package com.karimsammouri.resolve.service;
 
-import com.karimsammouri.resolve.dto.AgentMessageRequest;
-import com.karimsammouri.resolve.dto.AgentMessageResponse;
-import com.karimsammouri.resolve.dto.AgentTicketResponse;
-import com.karimsammouri.resolve.dto.AgentTicketSummaryResponse;
+import com.karimsammouri.resolve.dto.request.AgentMessageRequest;
+import com.karimsammouri.resolve.dto.response.AgentMessageResponse;
+import com.karimsammouri.resolve.dto.response.AgentTicketResponse;
+import com.karimsammouri.resolve.dto.response.AgentTicketSummaryResponse;
 import com.karimsammouri.resolve.entity.Message;
 import com.karimsammouri.resolve.entity.Ticket;
 import com.karimsammouri.resolve.entity.TicketStatusHistory;

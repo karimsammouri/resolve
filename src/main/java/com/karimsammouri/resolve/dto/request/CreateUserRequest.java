@@ -1,4 +1,4 @@
-package com.karimsammouri.resolve.dto;
+package com.karimsammouri.resolve.dto.request;
 
 import com.karimsammouri.resolve.enums.UserRole;
 import jakarta.validation.constraints.NotBlank;

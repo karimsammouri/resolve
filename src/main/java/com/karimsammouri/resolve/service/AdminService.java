@@ -1,21 +1,25 @@
 package com.karimsammouri.resolve.service;
 
-import com.karimsammouri.resolve.dto.CreateUserRequest;
-import com.karimsammouri.resolve.dto.UpdateUserRequest;
-import com.karimsammouri.resolve.dto.ViewUserResponse;
+import com.karimsammouri.resolve.dto.request.CreateUserRequest;
+import com.karimsammouri.resolve.dto.request.UpdateUserRequest;
+import com.karimsammouri.resolve.dto.response.ViewUserResponse;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AdminService {
+    private final PasswordEncoder passwordEncoder;
+
     private final UserRepository userRepo;
 
-    public AdminService(UserRepository userRepo) {
+    public AdminService(PasswordEncoder passwordEncoder, UserRepository userRepo) {
+        this.passwordEncoder = passwordEncoder;
         this.userRepo = userRepo;
     }
 
@@ -30,8 +34,7 @@ public class AdminService {
         User newUser = new User(
                 request.name(),
                 request.email(),
-                // Use passwordEncoder.encode(request.password()) once Spring Security is enabled
-                request.password(),
+                passwordEncoder.encode(request.password()),
                 request.role(),
                 admin.getOrganization());
         userRepo.save(newUser);
@@ -68,8 +71,7 @@ public class AdminService {
             user.setEmail(request.email());
         }
         if (request.password() != null) {
-            // Use passwordEncoder.encode(request.password()) once Spring Security is enabled
-            user.setPasswordHash(request.password());
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
         }
         if (request.role() != null && !userId.equals(admin.getId())) {
             user.setRole(request.role());

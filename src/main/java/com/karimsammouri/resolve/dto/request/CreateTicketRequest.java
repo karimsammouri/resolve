@@ -1,4 +1,4 @@
-package com.karimsammouri.resolve.dto;
+package com.karimsammouri.resolve.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

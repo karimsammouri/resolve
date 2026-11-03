@@ -1,9 +1,9 @@
 package com.karimsammouri.resolve.service;
 
-import com.karimsammouri.resolve.dto.AddMessageRequest;
-import com.karimsammouri.resolve.dto.CreateTicketRequest;
-import com.karimsammouri.resolve.dto.ViewMessageResponse;
-import com.karimsammouri.resolve.dto.ViewTicketResponse;
+import com.karimsammouri.resolve.dto.request.AddMessageRequest;
+import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
+import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
