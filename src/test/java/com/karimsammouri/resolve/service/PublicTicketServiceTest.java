@@ -57,9 +57,10 @@ public class PublicTicketServiceTest {
         tokenHash = "hashed-token";
 
         organization = new Organization("Acme", "acme");
-        ticket = new Ticket("Cannot login",
+        ticket = new Ticket(
+                "Cannot login",
                 "John Smith",
-                "johnsmith@acme.com",
+                "johnsmith@example.com",
                 organization);
 
         when(tokenService.generateToken()).thenReturn(token);
@@ -74,7 +75,7 @@ public class PublicTicketServiceTest {
         String organizationSlug = "acme";
         CreateTicketRequest request = new CreateTicketRequest(
                 "John Smith",
-                "johnsmith@acme.com",
+                "johnsmith@example.com",
                 "Cannot login",
                 "I cannot login");
 
@@ -99,7 +100,7 @@ public class PublicTicketServiceTest {
             Ticket savedTicket = ticketCaptor.getValue();
             assertEquals("Cannot login", savedTicket.getSubject());
             assertEquals("John Smith", savedTicket.getCustomerName());
-            assertEquals("johnsmith@acme.com", savedTicket.getCustomerEmail());
+            assertEquals("johnsmith@example.com", savedTicket.getCustomerEmail());
 
             ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
             verify(messageRepo).save(messageCaptor.capture());
@@ -120,7 +121,7 @@ public class PublicTicketServiceTest {
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
             verify(emailService).sendTicketConfirmation(
-                    "johnsmith@acme.com",
+                    "johnsmith@example.com",
                     "John Smith",
                     ticketId,
                     "Cannot login",
@@ -136,7 +137,7 @@ public class PublicTicketServiceTest {
         String organizationSlug = "acme";
         CreateTicketRequest request = new CreateTicketRequest(
                 "John Smith",
-                "johnsmith@acme.com",
+                "johnsmith@example.com",
                 "Cannot login",
                 "I cannot login");
 
@@ -171,8 +172,7 @@ public class PublicTicketServiceTest {
         assertEquals("Cannot login", response.subject());
         assertEquals("OPEN", response.status());
         assertEquals("John Smith", response.customerName());
-        assertEquals("johnsmith@acme.com", response.customerEmail());
-
+        assertEquals("johnsmith@example.com", response.customerEmail());
         assertEquals(1, response.messages().size());
 
         ViewMessageResponse returnedMessage = response.messages().get(0);
