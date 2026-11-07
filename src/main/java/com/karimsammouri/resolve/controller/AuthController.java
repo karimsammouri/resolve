@@ -13,6 +13,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -83,16 +84,8 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<AuthResponse> me(Authentication authentication) {
-        ResolveUserDetails userDetails = (ResolveUserDetails) authentication.getPrincipal();
-
-        User user = userDetails.getUser();
-
-        AuthResponse response = new AuthResponse(
-                user.getName(),
-                user.getEmail(),
-                user.getRole());
-
-        return ResponseEntity.ok(response);
+    public AuthResponse me(@AuthenticationPrincipal ResolveUserDetails principal) {
+        User user = principal.getUser();
+        return new AuthResponse(user.getName(), user.getEmail(), user.getRole());
     }
 }

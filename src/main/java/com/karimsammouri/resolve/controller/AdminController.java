@@ -9,7 +9,6 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,28 +22,21 @@ public class AdminController {
     }
 
     @PostMapping("/users")
-    public ResponseEntity<Long> createUser(@AuthenticationPrincipal ResolveUserDetails principal,
-                                           @Valid @RequestBody CreateUserRequest request) {
-        Long newUserId = adminService.createUser(principal.getUser(), request);
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(newUserId);
+    @ResponseStatus(HttpStatus.CREATED)
+    public Long createUser(@AuthenticationPrincipal ResolveUserDetails principal,
+                           @Valid @RequestBody CreateUserRequest request) {
+        return adminService.createUser(principal.getUser(), request);
     }
 
     @GetMapping("/users")
-    public ResponseEntity<Page<ViewUserResponse>> viewUsers(@AuthenticationPrincipal ResolveUserDetails principal,
-                                                            Pageable pageable) {
-        Page<ViewUserResponse> response = adminService.viewUsers(principal.getUser(), pageable);
-
-        return ResponseEntity.ok(response);
+    public Page<ViewUserResponse> viewUsers(@AuthenticationPrincipal ResolveUserDetails principal, Pageable pageable) {
+        return adminService.viewUsers(principal.getUser(), pageable);
     }
 
     @PatchMapping("/users/{userId}")
-    public ResponseEntity<Long> updateUser(@PathVariable Long userId,
-                                           @AuthenticationPrincipal ResolveUserDetails principal,
-                                           @RequestBody UpdateUserRequest request) {
-        Long updatedUserId = adminService.updateUser(userId, principal.getUser(), request);
-
-        return ResponseEntity.ok(updatedUserId);
+    public Long updateUser(@PathVariable Long userId,
+                           @AuthenticationPrincipal ResolveUserDetails principal,
+                           @RequestBody UpdateUserRequest request) {
+        return adminService.updateUser(userId, principal.getUser(), request);
     }
 }
