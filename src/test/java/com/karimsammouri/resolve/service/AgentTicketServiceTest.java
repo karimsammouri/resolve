@@ -46,7 +46,6 @@ public class AgentTicketServiceTest {
 
     private Long ticketId;
     private Long organizationId;
-
     private Organization organization;
     private Ticket ticket;
     private User user;
@@ -57,12 +56,14 @@ public class AgentTicketServiceTest {
         organizationId = 1L;
 
         organization = new Organization("Acme", "acme");
-        ReflectionTestUtils.setField(organization, "id", 1L);
+        ReflectionTestUtils.setField(organization, "id", organizationId);
+
         ticket = new Ticket(
                 "Cannot login",
                 "John Smith",
                 "johnsmith@example.com",
                 organization);
+
         user = new User(
                 "Agent Smith",
                 "agent@acme.com",
