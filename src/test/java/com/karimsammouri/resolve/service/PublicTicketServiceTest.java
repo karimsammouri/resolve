@@ -7,8 +7,10 @@ import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
+import com.karimsammouri.resolve.exception.InvalidTicketAccessException;
+import com.karimsammouri.resolve.exception.InvalidTicketStateException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.*;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -144,7 +146,7 @@ public class PublicTicketServiceTest {
         when(organizationRepo.findBySlug(organizationSlug))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> publicTicketService.createTicket(organizationSlug, request));
 
         verify(ticketRepo, never()).save(any(Ticket.class));
@@ -187,7 +189,7 @@ public class PublicTicketServiceTest {
         when(ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class, () -> publicTicketService.viewTicket(ticketId, token));
+        assertThrows(InvalidTicketAccessException.class, () -> publicTicketService.viewTicket(ticketId, token));
 
         verify(messageRepo, never()).findByTicket_IdAndIsInternalNoteFalseOrderByCreatedAtAsc(ticketId);
         verify(ticketRepo, never()).findById(ticketId);
@@ -240,7 +242,7 @@ public class PublicTicketServiceTest {
         ticket.setStatus(TicketStatus.ARCHIVED);
 
         AddMessageRequest request = new AddMessageRequest("I cannot login.");
-        assertThrows(IllegalStateException.class, () -> publicTicketService.addMessage(ticketId, token, request));
+        assertThrows(InvalidTicketStateException.class, () -> publicTicketService.addMessage(ticketId, token, request));
 
         assertEquals(TicketStatus.ARCHIVED, ticket.getStatus());
         assertFalse(ticket.hasUnreadCustomerMessage());

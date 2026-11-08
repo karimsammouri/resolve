@@ -6,6 +6,8 @@ import com.karimsammouri.resolve.dto.response.ViewUserResponse;
 import com.karimsammouri.resolve.entity.Organization;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.enums.UserRole;
+import com.karimsammouri.resolve.exception.DuplicateResourceException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,7 +89,7 @@ public class AdminServiceTest {
 
         when(userRepo.existsByEmail(request.email())).thenReturn(true);
 
-        assertThrows(IllegalArgumentException.class, () -> adminService.createUser(admin, request));
+        assertThrows(DuplicateResourceException.class, () -> adminService.createUser(admin, request));
 
         verify(userRepo, never()).save(any(User.class));
     }
@@ -194,7 +196,7 @@ public class AdminServiceTest {
                 UserRole.ADMINISTRATOR,
                 true);
 
-        assertThrows(EntityNotFoundException.class, () -> adminService.updateUser(targetUserId, admin, request));
+        assertThrows(ResourceNotFoundException.class, () -> adminService.updateUser(targetUserId, admin, request));
     }
 
     @Test
@@ -220,7 +222,7 @@ public class AdminServiceTest {
                 UserRole.ADMINISTRATOR,
                 null);
 
-        assertThrows(IllegalArgumentException.class, () -> adminService.updateUser(targetUserId, admin, request));
+        assertThrows(DuplicateResourceException.class, () -> adminService.updateUser(targetUserId, admin, request));
         assertEquals("agent@acme.com", user.getEmail());
     }
 

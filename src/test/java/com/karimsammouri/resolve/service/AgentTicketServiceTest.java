@@ -8,10 +8,13 @@ import com.karimsammouri.resolve.entity.*;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.enums.UserRole;
+import com.karimsammouri.resolve.exception.InvalidTicketStateException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.platform.commons.io.Resource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -115,8 +118,7 @@ public class AgentTicketServiceTest {
         when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class,
-                () -> agentTicketService.viewTicket(ticketId, user));
+        assertThrows(ResourceNotFoundException.class, () -> agentTicketService.viewTicket(ticketId, user));
 
         verify(messageRepo, never()).findByTicket_IdOrderByCreatedAtAsc(ticketId);
     }
@@ -277,7 +279,7 @@ public class AgentTicketServiceTest {
 
         AgentMessageRequest request = new AgentMessageRequest("Following up on this issue.", false);
 
-        assertThrows(IllegalStateException.class, () -> agentTicketService.addMessage(ticketId, user, request));
+        assertThrows(InvalidTicketStateException.class, () -> agentTicketService.addMessage(ticketId, user, request));
 
         verify(ticketStatusHistoryRepo, never()).save(any(TicketStatusHistory.class));
         verify(messageRepo, never()).save(any(Message.class));
@@ -312,7 +314,7 @@ public class AgentTicketServiceTest {
         when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> agentTicketService.changeStatus(ticketId, user, TicketStatus.RESOLVED));
 
         assertEquals(TicketStatus.OPEN, ticket.getStatus());
@@ -347,7 +349,7 @@ public class AgentTicketServiceTest {
         when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> agentTicketService.assignAgent(ticketId, user, targetAgentId));
 
         assertNull(ticket.getAssignedAgent());
@@ -362,7 +364,7 @@ public class AgentTicketServiceTest {
         when(userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId))
                 .thenReturn(Optional.empty());
 
-        assertThrows(EntityNotFoundException.class,
+        assertThrows(ResourceNotFoundException.class,
                 () -> agentTicketService.assignAgent(ticketId, user, targetAgentId));
 
         assertNull(ticket.getAssignedAgent());
