@@ -7,8 +7,10 @@ import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
+import com.karimsammouri.resolve.exception.InvalidTicketAccessException;
+import com.karimsammouri.resolve.exception.InvalidTicketStateException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.*;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,7 +55,7 @@ public class PublicTicketService {
     public Long createTicket(String organizationSlug, CreateTicketRequest request) {
         // Retrieve and validate organization by slug
         Organization organization = organizationRepo.findBySlug(organizationSlug)
-                .orElseThrow(() -> new EntityNotFoundException("Organization not found: " + organizationSlug));
+                .orElseThrow(() -> new ResourceNotFoundException("Organization not found: " + organizationSlug));
 
         // Create and save message and ticket with given data
         Ticket ticket = new Ticket(
@@ -99,7 +101,7 @@ public class PublicTicketService {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
         ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
-                .orElseThrow(() -> new EntityNotFoundException("Invalid or expired access token"));
+                .orElseThrow(() -> new InvalidTicketAccessException("Invalid or expired access token"));
 
         // Retrieve and map messages to DTOs
         List<Message> messages = messageRepo.findByTicket_IdAndIsInternalNoteFalseOrderByCreatedAtAsc(ticketId);
@@ -114,7 +116,7 @@ public class PublicTicketService {
 
         // Retrieve and return ticket and associated messages
         Ticket ticket = ticketRepo.findById(ticketId)
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
         return new ViewTicketResponse(
                 ticketId,
                 ticket.getSubject(),
@@ -129,15 +131,15 @@ public class PublicTicketService {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
         ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
-                .orElseThrow(() -> new EntityNotFoundException("Invalid or expired access token"));
+                .orElseThrow(() -> new InvalidTicketAccessException("Invalid or expired access token"));
 
         // Retrieve ticket
         Ticket ticket = ticketRepo.findById(ticketId)
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Prevent messages to archived tickets; reopen ticket if marked resolved
         if (ticket.getStatus() == TicketStatus.ARCHIVED) {
-            throw new IllegalStateException("Cannot add message to an archived ticket");
+            throw new InvalidTicketStateException("Cannot add message to an archived ticket");
         } else if (ticket.getStatus() == TicketStatus.RESOLVED) {
             TicketStatus oldStatus = ticket.getStatus();
             ticket.setStatus(TicketStatus.OPEN);

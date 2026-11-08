@@ -4,8 +4,9 @@ import com.karimsammouri.resolve.dto.request.CreateUserRequest;
 import com.karimsammouri.resolve.dto.request.UpdateUserRequest;
 import com.karimsammouri.resolve.dto.response.ViewUserResponse;
 import com.karimsammouri.resolve.entity.User;
+import com.karimsammouri.resolve.exception.DuplicateResourceException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,7 +28,7 @@ public class AdminService {
     public Long createUser(User admin, CreateUserRequest request) {
         // Confirm that email is not already in use
         if (userRepo.existsByEmail(request.email())) {
-            throw new IllegalArgumentException("Email already exists");
+            throw new DuplicateResourceException("Email already exists");
         }
 
         // Create and save new user
@@ -58,7 +59,7 @@ public class AdminService {
     public Long updateUser(Long userId, User admin, UpdateUserRequest request) {
         // Retrieve user scoped by organization
         User user = userRepo.findByIdAndOrganization_Id(userId, admin.getOrganization().getId())
-                .orElseThrow(() -> new EntityNotFoundException("User not found: #" + userId));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + userId));
 
         // Update user properties
         if (request.name() != null) {
@@ -66,7 +67,7 @@ public class AdminService {
         }
         if (request.email() != null && !request.email().equals(user.getEmail())) {
             if (userRepo.existsByEmail(request.email())) {
-                throw new IllegalArgumentException("Email already exists");
+                throw new DuplicateResourceException("Email already exists");
             }
             user.setEmail(request.email());
         }

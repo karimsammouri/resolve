@@ -45,7 +45,7 @@ public class SecurityConfig {
                                 .requestMatchers("/api/auth/csrf", "/api/auth/login").permitAll()
                                 .requestMatchers("/api/auth/me").authenticated()
                                 .requestMatchers("/api/auth/logout").authenticated()
-                                .requestMatchers("/api/agent/**").hasRole("AGENT")
+                                .requestMatchers("/api/agent/**").hasAnyRole("AGENT", "ADMINISTRATOR")
                                 .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
                                 .anyRequest().authenticated())
                 .securityContext(context ->

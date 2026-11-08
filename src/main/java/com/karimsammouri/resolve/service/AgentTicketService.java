@@ -10,11 +10,12 @@ import com.karimsammouri.resolve.entity.TicketStatusHistory;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
+import com.karimsammouri.resolve.exception.InvalidTicketStateException;
+import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.MessageRepository;
 import com.karimsammouri.resolve.repository.TicketRepository;
 import com.karimsammouri.resolve.repository.TicketStatusHistoryRepository;
 import com.karimsammouri.resolve.repository.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,7 @@ public class AgentTicketService {
     public AgentTicketResponse viewTicket(Long ticketId, User user) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Mark customer messages as read
         ticket.setHasUnreadCustomerMessage(false);
@@ -103,11 +104,11 @@ public class AgentTicketService {
     public Long addMessage(Long ticketId, User user, AgentMessageRequest request) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Prevent messages to archived tickets; reopen ticket if marked resolved
         if (ticket.getStatus() == TicketStatus.ARCHIVED) {
-            throw new IllegalStateException("Cannot add message to an archived ticket");
+            throw new InvalidTicketStateException("Cannot add message to an archived ticket");
         } else if (ticket.getStatus() == TicketStatus.RESOLVED && !request.isInternalNote()) {
             TicketStatus oldStatus = ticket.getStatus();
             ticket.setStatus(TicketStatus.OPEN);
@@ -147,7 +148,7 @@ public class AgentTicketService {
     public Long changeStatus(Long ticketId, User user, TicketStatus targetStatus) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Only update if ticket status actually changes
         if (ticket.getStatus() != targetStatus) {
@@ -175,7 +176,7 @@ public class AgentTicketService {
     public Long assignAgent(Long ticketId, User user, Long targetAgentId) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
-                .orElseThrow(() -> new EntityNotFoundException("Ticket not found: #" + ticketId));
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
         Long assignedAgentId = ticket.getAssignedAgent() != null ?
                 ticket.getAssignedAgent().getId() : null;
 
@@ -186,7 +187,7 @@ public class AgentTicketService {
             // Retrieve target agent if assigning (not unassigning)
             if (targetAgentId != null) {
                 targetAgent = userRepo.findByIdAndOrganization_Id(targetAgentId, user.getOrganization().getId())
-                        .orElseThrow(() -> new EntityNotFoundException("User not found: #" + targetAgentId));
+                        .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + targetAgentId));
             }
 
             ticket.setAssignedAgent(targetAgent);
