@@ -1,5 +1,6 @@
 package com.karimsammouri.resolve.controller;
 
+import com.karimsammouri.resolve.config.SecurityConfig;
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
@@ -9,7 +10,9 @@ import com.karimsammouri.resolve.service.PublicTicketService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -23,9 +26,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@EnableWebSecurity
 @WebMvcTest(PublicTicketController.class)
+@Import(SecurityConfig.class)
 public class PublicTicketControllerTest {
-
     @Autowired
     private MockMvc mockMvc;
 
@@ -78,7 +82,7 @@ public class PublicTicketControllerTest {
 
     @Test
     void viewTicket_withValidToken_shouldReturnTicket() throws Exception {
-        ViewMessageResponse messageResponse1 = new ViewMessageResponse(
+        ViewMessageResponse messageResponse = new ViewMessageResponse(
                 1L,
                 "CUSTOMER",
                 "John Doe",
@@ -91,7 +95,7 @@ public class PublicTicketControllerTest {
                 "OPEN",
                 "John Doe",
                 "john@example.com",
-                List.of(messageResponse1));
+                List.of(messageResponse));
 
         when(publicTicketService.viewTicket(123L, "valid-token"))
                 .thenReturn(ticketResponse);
