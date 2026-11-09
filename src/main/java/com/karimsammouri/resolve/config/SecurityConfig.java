@@ -31,8 +31,7 @@ public class SecurityConfig {
                                                    SecurityContextRepository securityContextRepository) {
         http
                 .csrf(csrf ->
-                        csrf.ignoringRequestMatchers("/api/public/**")
-                                .ignoringRequestMatchers("/api/public/**"))
+                        csrf.ignoringRequestMatchers("/api/public/**"))
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .formLogin(AbstractHttpConfigurer::disable)

@@ -9,7 +9,6 @@ import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.exception.DuplicateResourceException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.UserRepository;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

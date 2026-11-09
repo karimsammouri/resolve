@@ -60,7 +60,7 @@ public class PublicTicketServiceTest {
 
         organization = new Organization("Acme", "acme");
         ticket = new Ticket(
-                "Cannot login",
+                "Cannot log in",
                 "John Smith",
                 "johnsmith@example.com",
                 organization);
@@ -78,8 +78,8 @@ public class PublicTicketServiceTest {
         CreateTicketRequest request = new CreateTicketRequest(
                 "John Smith",
                 "johnsmith@example.com",
-                "Cannot login",
-                "I cannot login");
+                "Cannot log in",
+                "I cannot log in");
 
         when(organizationRepo.findBySlug(organizationSlug)).thenReturn(Optional.of(organization));
 
@@ -100,7 +100,7 @@ public class PublicTicketServiceTest {
             verify(ticketRepo).save(ticketCaptor.capture());
 
             Ticket savedTicket = ticketCaptor.getValue();
-            assertEquals("Cannot login", savedTicket.getSubject());
+            assertEquals("Cannot log in", savedTicket.getSubject());
             assertEquals("John Smith", savedTicket.getCustomerName());
             assertEquals("johnsmith@example.com", savedTicket.getCustomerEmail());
 
@@ -110,7 +110,7 @@ public class PublicTicketServiceTest {
             Message initialMessage = messageCaptor.getValue();
             assertEquals(MessageSenderType.CUSTOMER, initialMessage.getSenderType());
             assertEquals("John Smith", initialMessage.getSenderName());
-            assertEquals("I cannot login", initialMessage.getBody());
+            assertEquals("I cannot log in", initialMessage.getBody());
 
             verify(tokenService).generateToken();
             verify(tokenService).hashToken(token);
@@ -126,7 +126,7 @@ public class PublicTicketServiceTest {
                     "johnsmith@example.com",
                     "John Smith",
                     ticketId,
-                    "Cannot login",
+                    "Cannot log in",
                     "http://localhost:8080/api/public/tickets/123?token=" + token);
 
         } finally {
@@ -140,8 +140,8 @@ public class PublicTicketServiceTest {
         CreateTicketRequest request = new CreateTicketRequest(
                 "John Smith",
                 "johnsmith@example.com",
-                "Cannot login",
-                "I cannot login");
+                "Cannot log in",
+                "I cannot log in");
 
         when(organizationRepo.findBySlug(organizationSlug))
                 .thenReturn(Optional.empty());
@@ -162,7 +162,7 @@ public class PublicTicketServiceTest {
                 MessageSenderType.CUSTOMER,
                 null,
                 "John Smith",
-                "I cannot login",
+                "I cannot log in",
                 false);
 
         when(messageRepo.findByTicket_IdAndIsInternalNoteFalseOrderByCreatedAtAsc(ticketId))
@@ -171,7 +171,7 @@ public class PublicTicketServiceTest {
         ViewTicketResponse response = publicTicketService.viewTicket(ticketId, token);
 
         assertEquals(ticketId, response.ticketId());
-        assertEquals("Cannot login", response.subject());
+        assertEquals("Cannot log in", response.subject());
         assertEquals("OPEN", response.status());
         assertEquals("John Smith", response.customerName());
         assertEquals("johnsmith@example.com", response.customerEmail());
@@ -181,7 +181,7 @@ public class PublicTicketServiceTest {
 
         assertEquals("CUSTOMER", returnedMessage.senderType());
         assertEquals("John Smith", returnedMessage.senderName());
-        assertEquals("I cannot login", returnedMessage.body());
+        assertEquals("I cannot log in", returnedMessage.body());
     }
 
     @Test
@@ -201,7 +201,7 @@ public class PublicTicketServiceTest {
         ticket.setUpdatedAt(previousUpdatedAt);
         ticket.setHasUnreadCustomerMessage(false);
 
-        AddMessageRequest request = new AddMessageRequest("I cannot login.");
+        AddMessageRequest request = new AddMessageRequest("I cannot log in.");
         publicTicketService.addMessage(ticketId, token, request);
 
         assertTrue(ticket.hasUnreadCustomerMessage());
@@ -219,7 +219,7 @@ public class PublicTicketServiceTest {
         ticket.setStatus(TicketStatus.RESOLVED);
         ticket.setResolvedAt(LocalDateTime.now());
 
-        AddMessageRequest request = new AddMessageRequest("I cannot login.");
+        AddMessageRequest request = new AddMessageRequest("I cannot log in.");
         publicTicketService.addMessage(ticketId, token, request);
 
         assertEquals(TicketStatus.OPEN, ticket.getStatus());
@@ -241,7 +241,7 @@ public class PublicTicketServiceTest {
 
         ticket.setStatus(TicketStatus.ARCHIVED);
 
-        AddMessageRequest request = new AddMessageRequest("I cannot login.");
+        AddMessageRequest request = new AddMessageRequest("I cannot log in.");
         assertThrows(InvalidTicketStateException.class, () -> publicTicketService.addMessage(ticketId, token, request));
 
         assertEquals(TicketStatus.ARCHIVED, ticket.getStatus());

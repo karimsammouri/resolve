@@ -11,10 +11,8 @@ import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.exception.InvalidTicketStateException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.*;
-import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.platform.commons.io.Resource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -62,7 +60,7 @@ public class AgentTicketServiceTest {
         ReflectionTestUtils.setField(organization, "id", organizationId);
 
         ticket = new Ticket(
-                "Cannot login",
+                "Cannot log in",
                 "John Smith",
                 "johnsmith@example.com",
                 organization);
@@ -87,7 +85,7 @@ public class AgentTicketServiceTest {
                 MessageSenderType.CUSTOMER,
                 null,
                 "John Smith",
-                "I cannot login",
+                "I cannot log in",
                 false);
 
         when(messageRepo.findByTicket_IdOrderByCreatedAtAsc(ticketId)).thenReturn(List.of(message));
@@ -96,7 +94,7 @@ public class AgentTicketServiceTest {
 
         assertFalse(ticket.hasUnreadCustomerMessage());
         assertEquals(ticketId, response.ticketId());
-        assertEquals("Cannot login", response.subject());
+        assertEquals("Cannot log in", response.subject());
         assertEquals("OPEN", response.status());
         assertEquals("John Smith", response.customerName());
         assertEquals("johnsmith@example.com", response.customerEmail());
@@ -109,7 +107,7 @@ public class AgentTicketServiceTest {
 
         assertEquals("CUSTOMER", returnedMessage.senderType());
         assertEquals("John Smith", returnedMessage.senderName());
-        assertEquals("I cannot login", returnedMessage.body());
+        assertEquals("I cannot log in", returnedMessage.body());
         assertFalse(returnedMessage.isInternalNote());
     }
 
@@ -126,7 +124,7 @@ public class AgentTicketServiceTest {
     @Test
     void viewTickets_shouldReturnTickets() {
         Ticket ticket1 = new Ticket(
-                "Cannot login",
+                "Cannot log in",
                 "John Smith",
                 "johnsmith@example.com",
                 organization);
@@ -152,7 +150,7 @@ public class AgentTicketServiceTest {
         assertEquals(3, result.getTotalPages());
 
         AgentTicketSummaryResponse first = result.getContent().get(0);
-        assertEquals("Cannot login", first.subject());
+        assertEquals("Cannot log in", first.subject());
         assertEquals("OPEN", first.status());
         assertEquals("John Smith", first.customerName());
         assertEquals("johnsmith@example.com", first.customerEmail());
