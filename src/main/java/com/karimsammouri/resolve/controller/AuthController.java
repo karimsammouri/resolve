@@ -48,9 +48,7 @@ public class AuthController {
                                               HttpServletResponse httpResponse) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    UsernamePasswordAuthenticationToken.unauthenticated(
-                            request.email(),
-                            request.password()));
+                    UsernamePasswordAuthenticationToken.unauthenticated(request.email(), request.password()));
 
             SecurityContext context = SecurityContextHolder.createEmptyContext();
             context.setAuthentication(authentication);
@@ -78,7 +76,6 @@ public class AuthController {
             return ResponseEntity.ok(response);
 
         } catch (AuthenticationException exception) {
-            SecurityContextHolder.clearContext();
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }

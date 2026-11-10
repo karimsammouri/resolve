@@ -27,37 +27,37 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFitlerChain(HttpSecurity http,
-                                                   SecurityContextRepository securityContextRepository) {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http,
+                                                   SecurityContextRepository securityContextRepository,
+                                                   CsrfTokenRepository csrfTokenRepository) {
         http
-                .csrf(csrf ->
-                        csrf.ignoringRequestMatchers("/api/public/**"))
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(csrfTokenRepository)
+                        .ignoringRequestMatchers("/api/public/**"))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
-                .exceptionHandling(exceptions ->
-                        exceptions.authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .authorizeHttpRequests(auth ->
-                        auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                                .requestMatchers("/api/public/**").permitAll()
-                                .requestMatchers("/api/auth/csrf", "/api/auth/login").permitAll()
-                                .requestMatchers("/api/auth/me").authenticated()
-                                .requestMatchers("/api/auth/logout").authenticated()
-                                .requestMatchers("/api/agent/**").hasAnyRole("AGENT", "ADMINISTRATOR")
-                                .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
-                                .anyRequest().authenticated())
-                .securityContext(context ->
-                        context.securityContextRepository(securityContextRepository))
-                .logout(logout ->
-                        logout.logoutUrl("/api/auth/logout")
-                                .invalidateHttpSession(true)
-                                .clearAuthentication(true)
-                                .deleteCookies("JSESSIONID")
-                                .logoutSuccessHandler((request,
-                                                       response,
-                                                       authentication) ->
-                                        response.setStatus(HttpServletResponse.SC_NO_CONTENT)));
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers("/api/public/**", "/api/auth/csrf", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/agent/**").hasAnyRole("AGENT", "ADMINISTRATOR")
+                        .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
+                        .anyRequest().authenticated())
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository))
+                .logout(logout -> logout
+                        .logoutUrl("/api/auth/logout")
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("JSESSIONID")
+                        .logoutSuccessHandler((
+                                request,
+                                response,
+                                authentication) -> response
+                                        .setStatus(HttpServletResponse.SC_NO_CONTENT)));
 
         return http.build();
     }
