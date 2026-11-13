@@ -55,4 +55,10 @@ public class AgentTicketController {
                             @RequestParam(required = false) Long targetAgentId) {
         return agentTicketService.assignAgent(ticketId, principal.getUser(), targetAgentId);
     }
+
+    @PatchMapping("/tickets/{ticketId}/read")
+    public Long markAsRead(@PathVariable Long ticketId,
+                           @AuthenticationPrincipal ResolveUserDetails principal) {
+        return agentTicketService.markAsRead(ticketId, principal.getUser());
+    }
 }

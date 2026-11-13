@@ -194,4 +194,17 @@ public class AgentTicketService {
 
         return ticketId;
     }
+
+    @Transactional
+    public Long markAsRead(Long ticketId, User user) {
+        // Retrieve ticket scoped to user's organization
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
+
+        if (ticket.hasUnreadCustomerMessage()) {
+            ticket.setHasUnreadCustomerMessage(false);
+        }
+
+        return ticketId;
+    }
 }
