@@ -97,6 +97,7 @@ public class PublicTicketService {
         return ticketId;
     }
 
+    @Transactional(readOnly = true)
     public ViewTicketResponse viewTicket(Long ticketId, String token) {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);

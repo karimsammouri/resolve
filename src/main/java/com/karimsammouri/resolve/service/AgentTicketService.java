@@ -48,14 +48,11 @@ public class AgentTicketService {
         this.messageRepo = messageRepo;
     }
 
+    @Transactional(readOnly = true)
     public AgentTicketResponse viewTicket(Long ticketId, User user) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
-
-        // Mark customer messages as read
-        ticket.setHasUnreadCustomerMessage(false);
-        ticketRepo.save(ticket);
 
         // Retrieve and map messages to DTOs
         List<Message> messages = messageRepo.findByTicket_IdOrderByCreatedAtAsc(ticketId);
@@ -83,6 +80,7 @@ public class AgentTicketService {
                 messageResponses);
     }
 
+    @Transactional(readOnly = true)
     public Page<AgentTicketSummaryResponse> viewTickets(User user, Pageable pageable) {
         // Retrieve and return tickets scoped to user's organization
         Page<Ticket> tickets = ticketRepo.findByOrganization_Id(user.getOrganization().getId(), pageable);

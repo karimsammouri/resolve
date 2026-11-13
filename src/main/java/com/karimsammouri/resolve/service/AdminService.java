@@ -43,6 +43,7 @@ public class AdminService {
         return newUser.getId();
     }
 
+    @Transactional(readOnly = true)
     public Page<ViewUserResponse> viewUsers(User admin, Pageable pageable) {
         // Retrieve and return users scoped to admin's organization
         Page<User> users = userRepo.findByOrganization_Id(admin.getOrganization().getId(), pageable);
