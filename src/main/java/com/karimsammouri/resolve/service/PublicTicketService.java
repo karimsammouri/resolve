@@ -26,6 +26,7 @@ public class PublicTicketService {
 
     private final TokenService tokenService;
     private final EmailService emailService;
+    private final AgentTicketCacheService ticketCacheService;
 
     private final OrganizationRepository organizationRepo;
     private final TicketRepository ticketRepo;
@@ -36,6 +37,7 @@ public class PublicTicketService {
     public PublicTicketService(@Value("${resolve.app.base-url}") String baseUrl,
                                TokenService tokenService,
                                EmailService emailService,
+                               AgentTicketCacheService ticketCacheService,
                                OrganizationRepository organizationRepo,
                                TicketRepository ticketRepo,
                                TicketStatusHistoryRepository ticketStatusHistoryRepo,
@@ -44,6 +46,7 @@ public class PublicTicketService {
         this.baseUrl = baseUrl;
         this.tokenService = tokenService;
         this.emailService = emailService;
+        this.ticketCacheService = ticketCacheService;
         this.organizationRepo = organizationRepo;
         this.ticketRepo = ticketRepo;
         this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
@@ -162,6 +165,8 @@ public class PublicTicketService {
         // Update ticket
         ticket.setHasUnreadCustomerMessage(true);
         ticket.setUpdatedAt(LocalDateTime.now());
+
+        ticketCacheService.evictAfterCommit(ticketId);
 
         return message.getId();
     }

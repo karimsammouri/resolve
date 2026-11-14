@@ -31,6 +31,7 @@ import static org.mockito.Mockito.*;
 
 public class AgentTicketServiceTest {
     private final EmailService emailService = mock(EmailService.class);
+    private final AgentTicketCacheService ticketCacheService = mock(AgentTicketCacheService.class);
 
     private final UserRepository userRepo = mock(UserRepository.class);
     private final TicketRepository ticketRepo = mock(TicketRepository.class);
@@ -39,6 +40,7 @@ public class AgentTicketServiceTest {
 
     private final AgentTicketService agentTicketService = new AgentTicketService(
             emailService,
+            ticketCacheService,
             userRepo,
             ticketRepo,
             messageRepo,

@@ -5,6 +5,7 @@ import java.util.List;
 
 public record AgentTicketResponse(
         Long ticketId,
+        Long organizationId,
         String subject,
         String status,
         String customerName,

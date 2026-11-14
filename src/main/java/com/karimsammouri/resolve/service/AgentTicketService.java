@@ -30,6 +30,7 @@ import java.util.Objects;
 @Service
 public class AgentTicketService {
     private final EmailService emailService;
+    private final AgentTicketCacheService ticketCacheService;
 
     private final UserRepository userRepo;
     private final TicketRepository ticketRepo;
@@ -37,11 +38,13 @@ public class AgentTicketService {
     private final MessageRepository messageRepo;
 
     public AgentTicketService(EmailService emailService,
+                              AgentTicketCacheService ticketCacheService,
                               UserRepository userRepo,
                               TicketRepository ticketRepo,
                               MessageRepository messageRepo,
                               TicketStatusHistoryRepository ticketStatusHistoryRepo) {
         this.emailService = emailService;
+        this.ticketCacheService = ticketCacheService;
         this.userRepo = userRepo;
         this.ticketRepo = ticketRepo;
         this.ticketStatusHistoryRepo = ticketStatusHistoryRepo;
@@ -50,8 +53,22 @@ public class AgentTicketService {
 
     @Transactional(readOnly = true)
     public AgentTicketResponse viewTicket(Long ticketId, User user) {
+        Long organizationId = user.getOrganization().getId();
+
+        // Check Redis for cached ticket
+        AgentTicketResponse cached = ticketCacheService.get(ticketId);
+
+        if (cached != null) {
+            // Verify organization scope
+            if (!organizationId.equals(cached.organizationId())) {
+                throw new ResourceNotFoundException("Ticket not found: #" + ticketId);
+            }
+
+            return cached;
+        }
+
         // Retrieve ticket scoped to user's organization
-        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Retrieve and map messages to DTOs
@@ -66,9 +83,10 @@ public class AgentTicketService {
                         message.getCreatedAt()
                 )).toList();
 
-        // Return ticket and associated messages
-        return new AgentTicketResponse(
+        // Construct response
+        AgentTicketResponse response = new AgentTicketResponse(
                 ticketId,
+                ticket.getOrganization().getId(),
                 ticket.getSubject(),
                 ticket.getStatus().name(),
                 ticket.getCustomerName(),
@@ -78,6 +96,11 @@ public class AgentTicketService {
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt(),
                 messageResponses);
+
+        // Store response in Redis
+        ticketCacheService.put(ticketId, response);
+
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -128,6 +151,8 @@ public class AgentTicketService {
         // Update ticket
         ticket.setUpdatedAt(LocalDateTime.now());
 
+        ticketCacheService.evictAfterCommit(ticketId);
+
         // Send email to notify customer of agent reply if not internal note
         if (!request.isInternalNote()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -165,6 +190,8 @@ public class AgentTicketService {
             // Record status transition
             ticketStatusHistoryRepo.save(
                     new TicketStatusHistory(ticket, oldStatus, targetStatus, user));
+
+            ticketCacheService.evictAfterCommit(ticketId);
         }
 
         return ticketId;
@@ -190,6 +217,8 @@ public class AgentTicketService {
 
             ticket.setAssignedAgent(targetAgent);
             ticket.setUpdatedAt(LocalDateTime.now());
+
+            ticketCacheService.evictAfterCommit(ticketId);
         }
 
         return ticketId;

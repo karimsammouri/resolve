@@ -76,6 +76,7 @@ public class AgentTicketControllerTest {
 
         AgentTicketResponse ticketResponse = new AgentTicketResponse(
                 123L,
+                5L,
                 "Unable to log in",
                 "OPEN",
                 "John Doe",
