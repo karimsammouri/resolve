@@ -1,0 +1,23 @@
+services:
+  mysql:
+    image: mysql:9.7
+    container_name: resolve-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - resolve-mysql-data:/var/lib/mysql
+
+  redis:
+    image: redis:8-alpine
+    container_name: resolve-redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  resolve-mysql-data:
+    external: true
