@@ -1,7 +1,9 @@
 package com.karimsammouri.resolve.service;
 
+import com.karimsammouri.resolve.client.EmailClient;
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.request.SendTicketConfirmationRequest;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
@@ -24,8 +26,9 @@ import java.util.List;
 public class PublicTicketService {
     private final String baseUrl;
 
+    private final EmailClient emailClient;
+
     private final TokenService tokenService;
-    private final EmailService emailService;
     private final AgentTicketCacheService ticketCacheService;
 
     private final OrganizationRepository organizationRepo;
@@ -35,8 +38,8 @@ public class PublicTicketService {
     private final CustomerTicketAccessRepository ticketAccessRepo;
 
     public PublicTicketService(@Value("${resolve.app.base-url}") String baseUrl,
+                               EmailClient emailClient,
                                TokenService tokenService,
-                               EmailService emailService,
                                AgentTicketCacheService ticketCacheService,
                                OrganizationRepository organizationRepo,
                                TicketRepository ticketRepo,
@@ -44,8 +47,8 @@ public class PublicTicketService {
                                MessageRepository messageRepo,
                                CustomerTicketAccessRepository ticketAccessRepo) {
         this.baseUrl = baseUrl;
+        this.emailClient = emailClient;
         this.tokenService = tokenService;
-        this.emailService = emailService;
         this.ticketCacheService = ticketCacheService;
         this.organizationRepo = organizationRepo;
         this.ticketRepo = ticketRepo;
@@ -88,12 +91,14 @@ public class PublicTicketService {
             @Override
             public void afterCommit() {
                 String accessLink = baseUrl + "/api/public/tickets/" + ticketId + "?token=" + token;
-                emailService.sendTicketConfirmation(
+                SendTicketConfirmationRequest emailRequest = new SendTicketConfirmationRequest(
                         request.customerEmail(),
                         request.customerName(),
                         ticketId,
                         request.messageSubject(),
-                        accessLink);
+                        accessLink
+                );
+                emailClient.sendTicketConfirmation(emailRequest);
             }
         });
 

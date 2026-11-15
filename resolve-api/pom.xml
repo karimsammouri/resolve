@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.karimsammouri</groupId>
-    <artifactId>resolve</artifactId>
+    <artifactId>resolve-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>resolve</name>
-    <description>resolve</description>
+    <name>resolve-api</name>
+    <description>resolve-api</description>
     <url/>
     <licenses>
         <license/>
@@ -45,10 +45,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

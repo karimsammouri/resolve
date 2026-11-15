@@ -1,6 +1,8 @@
 package com.karimsammouri.resolve.service;
 
+import com.karimsammouri.resolve.client.EmailClient;
 import com.karimsammouri.resolve.dto.request.AgentMessageRequest;
+import com.karimsammouri.resolve.dto.request.SendAgentReplyNotificationRequest;
 import com.karimsammouri.resolve.dto.response.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketSummaryResponse;
@@ -29,7 +31,8 @@ import java.util.Objects;
 
 @Service
 public class AgentTicketService {
-    private final EmailService emailService;
+    private final EmailClient emailClient;
+
     private final AgentTicketCacheService ticketCacheService;
 
     private final UserRepository userRepo;
@@ -37,13 +40,13 @@ public class AgentTicketService {
     private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
     private final MessageRepository messageRepo;
 
-    public AgentTicketService(EmailService emailService,
+    public AgentTicketService(EmailClient emailClient,
                               AgentTicketCacheService ticketCacheService,
                               UserRepository userRepo,
                               TicketRepository ticketRepo,
                               MessageRepository messageRepo,
                               TicketStatusHistoryRepository ticketStatusHistoryRepo) {
-        this.emailService = emailService;
+        this.emailClient = emailClient;
         this.ticketCacheService = ticketCacheService;
         this.userRepo = userRepo;
         this.ticketRepo = ticketRepo;
@@ -158,8 +161,12 @@ public class AgentTicketService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    emailService.sendAgentReplyEmail(
-                            ticket.getCustomerEmail(), ticket.getCustomerName(), ticketId, ticket.getSubject());
+                    SendAgentReplyNotificationRequest emailRequest = new SendAgentReplyNotificationRequest(
+                            ticket.getCustomerEmail(),
+                            ticket.getCustomerName(),
+                            ticketId,
+                            ticket.getSubject());
+                    emailClient.sendAgentReplyNotification(emailRequest);
                 }
             });
         }

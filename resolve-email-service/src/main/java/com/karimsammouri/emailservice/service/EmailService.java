@@ -1,4 +1,4 @@
-package com.karimsammouri.resolve.service;
+package com.karimsammouri.emailservice.service;
 
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -46,10 +46,10 @@ public class EmailService {
         mailSender.send(message);
     }
 
-    public void sendAgentReplyEmail(String customerEmail,
-                                    String customerName,
-                                    Long ticketId,
-                                    String ticketSubject) {
+    public void sendAgentReplyNotification(String customerEmail,
+                                           String customerName,
+                                           Long ticketId,
+                                           String ticketSubject) {
 
         SimpleMailMessage message = new SimpleMailMessage();
 
@@ -77,3 +77,4 @@ public class EmailService {
         mailSender.send(message);
     }
 }
+
