@@ -1,8 +1,13 @@
-HELP.md
-target/
-.mvn/wrapper/maven-wrapper.jar
+### Maven ###
+**/target/
+**/HELP.md
+**/.mvn/wrapper/maven-wrapper.jar
+
 !**/src/main/**/target/
 !**/src/test/**/target/
+
+### Environment Variables ###
+*.env*
 
 ### STS ###
 .apt_generated
@@ -31,6 +36,3 @@ build/
 
 ### VS Code ###
 .vscode/
-
-# Ignore all .env files
-*.env*
