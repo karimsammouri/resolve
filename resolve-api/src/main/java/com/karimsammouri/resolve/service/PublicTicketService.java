@@ -1,9 +1,7 @@
 package com.karimsammouri.resolve.service;
 
-import com.karimsammouri.resolve.client.EmailClient;
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
-import com.karimsammouri.resolve.dto.request.SendTicketConfirmationRequest;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
@@ -12,6 +10,9 @@ import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.exception.InvalidTicketAccessException;
 import com.karimsammouri.resolve.exception.InvalidTicketStateException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
+import com.karimsammouri.resolve.messaging.EmailNotification;
+import com.karimsammouri.resolve.messaging.EmailNotificationPublisher;
+import com.karimsammouri.resolve.messaging.EmailNotificationType;
 import com.karimsammouri.resolve.repository.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,7 +27,7 @@ import java.util.List;
 public class PublicTicketService {
     private final String baseUrl;
 
-    private final EmailClient emailClient;
+    private final EmailNotificationPublisher emailPublisher;
 
     private final TokenService tokenService;
     private final AgentTicketCacheService ticketCacheService;
@@ -38,7 +39,7 @@ public class PublicTicketService {
     private final CustomerTicketAccessRepository ticketAccessRepo;
 
     public PublicTicketService(@Value("${resolve.app.base-url}") String baseUrl,
-                               EmailClient emailClient,
+                               EmailNotificationPublisher emailPublisher,
                                TokenService tokenService,
                                AgentTicketCacheService ticketCacheService,
                                OrganizationRepository organizationRepo,
@@ -47,7 +48,7 @@ public class PublicTicketService {
                                MessageRepository messageRepo,
                                CustomerTicketAccessRepository ticketAccessRepo) {
         this.baseUrl = baseUrl;
-        this.emailClient = emailClient;
+        this.emailPublisher = emailPublisher;
         this.tokenService = tokenService;
         this.ticketCacheService = ticketCacheService;
         this.organizationRepo = organizationRepo;
@@ -91,14 +92,17 @@ public class PublicTicketService {
             @Override
             public void afterCommit() {
                 String accessLink = baseUrl + "/api/public/tickets/" + ticketId + "?token=" + token;
-                SendTicketConfirmationRequest emailRequest = new SendTicketConfirmationRequest(
-                        request.customerEmail(),
-                        request.customerName(),
+
+                EmailNotification notification = new EmailNotification(
+                        EmailNotificationType.TICKET_CONFIRMATION,
+                        ticket.getCustomerEmail(),
+                        ticket.getCustomerName(),
                         ticketId,
-                        request.messageSubject(),
+                        ticket.getSubject(),
                         accessLink
                 );
-                emailClient.sendTicketConfirmation(emailRequest);
+
+                emailPublisher.publish(notification);
             }
         });
 

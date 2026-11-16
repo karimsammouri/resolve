@@ -1,8 +1,6 @@
 package com.karimsammouri.resolve.service;
 
-import com.karimsammouri.resolve.client.EmailClient;
 import com.karimsammouri.resolve.dto.request.AgentMessageRequest;
-import com.karimsammouri.resolve.dto.request.SendAgentReplyNotificationRequest;
 import com.karimsammouri.resolve.dto.response.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketSummaryResponse;
@@ -14,6 +12,9 @@ import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.exception.InvalidTicketStateException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
+import com.karimsammouri.resolve.messaging.EmailNotification;
+import com.karimsammouri.resolve.messaging.EmailNotificationPublisher;
+import com.karimsammouri.resolve.messaging.EmailNotificationType;
 import com.karimsammouri.resolve.repository.MessageRepository;
 import com.karimsammouri.resolve.repository.TicketRepository;
 import com.karimsammouri.resolve.repository.TicketStatusHistoryRepository;
@@ -31,7 +32,7 @@ import java.util.Objects;
 
 @Service
 public class AgentTicketService {
-    private final EmailClient emailClient;
+    private final EmailNotificationPublisher emailPublisher;
 
     private final AgentTicketCacheService ticketCacheService;
 
@@ -40,13 +41,13 @@ public class AgentTicketService {
     private final TicketStatusHistoryRepository ticketStatusHistoryRepo;
     private final MessageRepository messageRepo;
 
-    public AgentTicketService(EmailClient emailClient,
+    public AgentTicketService(EmailNotificationPublisher emailPublisher,
                               AgentTicketCacheService ticketCacheService,
                               UserRepository userRepo,
                               TicketRepository ticketRepo,
                               MessageRepository messageRepo,
                               TicketStatusHistoryRepository ticketStatusHistoryRepo) {
-        this.emailClient = emailClient;
+        this.emailPublisher = emailPublisher;
         this.ticketCacheService = ticketCacheService;
         this.userRepo = userRepo;
         this.ticketRepo = ticketRepo;
@@ -161,12 +162,15 @@ public class AgentTicketService {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    SendAgentReplyNotificationRequest emailRequest = new SendAgentReplyNotificationRequest(
+                    EmailNotification notification = new EmailNotification(
+                            EmailNotificationType.AGENT_REPLY,
                             ticket.getCustomerEmail(),
                             ticket.getCustomerName(),
                             ticketId,
-                            ticket.getSubject());
-                    emailClient.sendAgentReplyNotification(emailRequest);
+                            ticket.getSubject(),
+                            null);
+
+                    emailPublisher.publish(notification);
                 }
             });
         }

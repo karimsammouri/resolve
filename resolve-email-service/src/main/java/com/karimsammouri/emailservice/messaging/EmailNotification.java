@@ -1,6 +1,7 @@
-package com.karimsammouri.resolve.dto.request;
+package com.karimsammouri.emailservice.messaging;
 
-public record SendTicketConfirmationRequest(
+public record EmailNotification(
+        EmailNotificationType type,
         String customerEmail,
         String customerName,
         Long ticketId,

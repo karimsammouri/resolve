@@ -18,6 +18,20 @@ services:
     ports:
       - "6379:6379"
 
+  rabbitmq:
+    image: rabbitmq:4.4-management
+    container_name: resolve-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - resolve-rabbitmq-data:/var/lib/rabbitmq
+
 volumes:
   resolve-mysql-data:
     external: true
+
+  resolve-rabbitmq-data:
