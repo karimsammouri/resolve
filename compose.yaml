@@ -8,7 +8,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - resolve-mysql-data:/var/lib/mysql
 
@@ -16,7 +16,7 @@ services:
     image: redis:8-alpine
     container_name: resolve-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
 
   rabbitmq:
     image: rabbitmq:4.4-management
@@ -29,6 +29,50 @@ services:
       - "127.0.0.1:15672:15672"
     volumes:
       - resolve-rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "-q", "check_running" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  resolve-api:
+    profiles: ["full"]
+    build: ./resolve-api
+    image: resolve-api:latest
+    container_name: resolve-api
+    environment:
+      MYSQL_URL: jdbc:mysql://mysql:3306/resolve
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    ports:
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      mysql:
+        condition: service_started
+      redis:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+
+  resolve-email-service:
+    profiles: ["full"]
+    build: ./resolve-email-service
+    image: resolve-email-service:latest
+    container_name: resolve-email-service
+    environment:
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      MAILTRAP_USER: ${MAILTRAP_USER}
+      MAILTRAP_PASSWORD: ${MAILTRAP_PASSWORD}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
 
 volumes:
   resolve-mysql-data:
