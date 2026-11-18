@@ -42,6 +42,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .authorizeHttpRequests(auth -> auth
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/public/**", "/api/auth/csrf", "/api/auth/login").permitAll()
                         .requestMatchers("/api/agent/**").hasAnyRole("AGENT", "ADMINISTRATOR")
                         .requestMatchers("/api/admin/**").hasRole("ADMINISTRATOR")
