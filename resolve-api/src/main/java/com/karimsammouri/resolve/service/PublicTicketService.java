@@ -113,8 +113,9 @@ public class PublicTicketService {
     public ViewTicketResponse viewTicket(Long ticketId, String token) {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
-        ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
-                .orElseThrow(() -> new InvalidTicketAccessException("Invalid or expired access token"));
+        if (!ticketAccessRepo.existsByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)) {
+            throw new InvalidTicketAccessException("Invalid or expired access token");
+        }
 
         // Retrieve and map messages to DTOs
         List<Message> messages = messageRepo.findByTicket_IdAndIsInternalNoteFalseOrderByCreatedAtAsc(ticketId);
@@ -143,8 +144,9 @@ public class PublicTicketService {
     public Long addMessage(Long ticketId, String token, AddMessageRequest request) {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
-        ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)
-                .orElseThrow(() -> new InvalidTicketAccessException("Invalid or expired access token"));
+        if (!ticketAccessRepo.existsByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)) {
+            throw new InvalidTicketAccessException("Invalid or expired access token");
+        }
 
         // Retrieve ticket
         Ticket ticket = ticketRepo.findById(ticketId)

@@ -62,14 +62,18 @@ public class AdminService {
         User user = userRepo.findByIdAndOrganization_Id(userId, admin.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + userId));
 
+        // Validate email before modifying entity
+        if (request.email() != null &&
+                !request.email().equals(user.getEmail()) &&
+                userRepo.existsByEmail(request.email())) {
+            throw new DuplicateResourceException("Email already exists");
+        }
+
         // Update user properties
         if (request.name() != null) {
             user.setName(request.name());
         }
-        if (request.email() != null && !request.email().equals(user.getEmail())) {
-            if (userRepo.existsByEmail(request.email())) {
-                throw new DuplicateResourceException("Email already exists");
-            }
+        if (request.email() != null) {
             user.setEmail(request.email());
         }
         if (request.password() != null) {
