@@ -26,13 +26,13 @@ public class AgentTicketController {
     @GetMapping("/tickets/{ticketId}")
     public AgentTicketResponse viewTicket(@PathVariable Long ticketId,
                                           @AuthenticationPrincipal ResolveUserDetails principal) {
-        return agentTicketService.viewTicket(ticketId, principal.getUser());
+        return agentTicketService.viewTicket(ticketId, principal.getOrganizationId());
     }
 
     @GetMapping("/tickets")
     public Page<AgentTicketSummaryResponse> viewTickets(@AuthenticationPrincipal ResolveUserDetails principal,
                                                         Pageable pageable) {
-        return agentTicketService.viewTickets(principal.getUser(), pageable);
+        return agentTicketService.viewTickets(principal.getOrganizationId(), pageable);
     }
 
     @PostMapping("/tickets/{ticketId}/messages")
@@ -40,7 +40,12 @@ public class AgentTicketController {
     public AgentMessageResponse addMessage(@PathVariable Long ticketId,
                                            @AuthenticationPrincipal ResolveUserDetails principal,
                                            @Valid @RequestBody AgentMessageRequest request) {
-        return agentTicketService.addMessage(ticketId, principal.getUser(), request);
+        return agentTicketService.addMessage(
+                ticketId,
+                principal.getId(),
+                principal.getOrganizationId(),
+                principal.getName(),
+                request);
     }
 
     @PatchMapping("/tickets/{ticketId}/status")
@@ -48,7 +53,7 @@ public class AgentTicketController {
     public void changeStatus(@PathVariable Long ticketId,
                              @AuthenticationPrincipal ResolveUserDetails principal,
                              @RequestParam TicketStatus targetStatus) {
-        agentTicketService.changeStatus(ticketId, principal.getUser(), targetStatus);
+        agentTicketService.changeStatus(ticketId, principal.getId(), principal.getOrganizationId(), targetStatus);
     }
 
     @PatchMapping("/tickets/{ticketId}/assignedAgent")
@@ -56,13 +61,13 @@ public class AgentTicketController {
     public void assignAgent(@PathVariable Long ticketId,
                             @AuthenticationPrincipal ResolveUserDetails principal,
                             @RequestParam(required = false) Long targetAgentId) {
-        agentTicketService.assignAgent(ticketId, principal.getUser(), targetAgentId);
+        agentTicketService.assignAgent(ticketId, principal.getOrganizationId(), targetAgentId);
     }
 
     @PatchMapping("/tickets/{ticketId}/read")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void markAsRead(@PathVariable Long ticketId,
                            @AuthenticationPrincipal ResolveUserDetails principal) {
-        agentTicketService.markAsRead(ticketId, principal.getUser());
+        agentTicketService.markAsRead(ticketId, principal.getOrganizationId());
     }
 }

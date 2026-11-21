@@ -2,7 +2,6 @@ package com.karimsammouri.resolve.controller;
 
 import com.karimsammouri.resolve.dto.request.LoginRequest;
 import com.karimsammouri.resolve.dto.response.AuthResponse;
-import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.security.ResolveUserDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -64,14 +63,9 @@ public class AuthController {
 
             csrfTokenRepo.saveToken(null, httpRequest, httpResponse);
 
-            ResolveUserDetails userDetails = (ResolveUserDetails) authentication.getPrincipal();
+            ResolveUserDetails principal = (ResolveUserDetails) authentication.getPrincipal();
 
-            User user = userDetails.getUser();
-
-            AuthResponse response = new AuthResponse(
-                    user.getName(),
-                    user.getEmail(),
-                    user.getRole());
+            AuthResponse response = new AuthResponse(principal.getName(), principal.getUsername(), principal.getRole());
 
             return ResponseEntity.ok(response);
 
@@ -82,7 +76,6 @@ public class AuthController {
 
     @GetMapping("/me")
     public AuthResponse me(@AuthenticationPrincipal ResolveUserDetails principal) {
-        User user = principal.getUser();
-        return new AuthResponse(user.getName(), user.getEmail(), user.getRole());
+        return new AuthResponse(principal.getName(), principal.getUsername(), principal.getRole());
     }
 }

@@ -24,13 +24,13 @@ public class AdminController {
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
     public ViewUserResponse createUser(@AuthenticationPrincipal ResolveUserDetails principal,
-                           @Valid @RequestBody CreateUserRequest request) {
-        return adminService.createUser(principal.getUser(), request);
+                                       @Valid @RequestBody CreateUserRequest request) {
+        return adminService.createUser(principal.getOrganizationId(), request);
     }
 
     @GetMapping("/users")
     public Page<ViewUserResponse> viewUsers(@AuthenticationPrincipal ResolveUserDetails principal, Pageable pageable) {
-        return adminService.viewUsers(principal.getUser(), pageable);
+        return adminService.viewUsers(principal.getOrganizationId(), pageable);
     }
 
     @PatchMapping("/users/{userId}")
@@ -38,6 +38,6 @@ public class AdminController {
     public void updateUser(@PathVariable Long userId,
                            @AuthenticationPrincipal ResolveUserDetails principal,
                            @Valid @RequestBody UpdateUserRequest request) {
-        adminService.updateUser(userId, principal.getUser(), request);
+        adminService.updateUser(userId, principal.getId(), principal.getOrganizationId(), request);
     }
 }

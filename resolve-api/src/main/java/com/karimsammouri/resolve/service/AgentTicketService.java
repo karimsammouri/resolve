@@ -56,9 +56,7 @@ public class AgentTicketService {
     }
 
     @Transactional(readOnly = true)
-    public AgentTicketResponse viewTicket(Long ticketId, User user) {
-        Long organizationId = user.getOrganization().getId();
-
+    public AgentTicketResponse viewTicket(Long ticketId, Long organizationId) {
         // Check Redis for cached ticket
         AgentTicketResponse cached = ticketCacheService.get(ticketId);
 
@@ -108,9 +106,9 @@ public class AgentTicketService {
     }
 
     @Transactional(readOnly = true)
-    public Page<AgentTicketSummaryResponse> viewTickets(User user, Pageable pageable) {
+    public Page<AgentTicketSummaryResponse> viewTickets(Long organizationId, Pageable pageable) {
         // Retrieve and return tickets scoped to user's organization
-        Page<Ticket> tickets = ticketRepo.findByOrganization_Id(user.getOrganization().getId(), pageable);
+        Page<Ticket> tickets = ticketRepo.findByOrganization_Id(organizationId, pageable);
 
         return tickets.map(ticket -> new AgentTicketSummaryResponse(
                 ticket.getId(),
@@ -126,10 +124,17 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public AgentMessageResponse addMessage(Long ticketId, User user, AgentMessageRequest request) {
+    public AgentMessageResponse addMessage(Long ticketId,
+                                           Long userId,
+                                           Long organizationId,
+                                           String senderName,
+                                           AgentMessageRequest request) {
         // Retrieve ticket scoped to user's organization
-        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
+
+        // Obtain a lazy User reference without a database query
+        User user = userRepo.getReferenceById(userId);
 
         // Prevent messages to archived tickets; reopen ticket if marked resolved
         if (ticket.getStatus() == TicketStatus.ARCHIVED) {
@@ -147,7 +152,7 @@ public class AgentTicketService {
                 ticket,
                 MessageSenderType.STAFF,
                 user,
-                user.getName(),
+                senderName,
                 request.body(),
                 request.isInternalNote());
         messageRepo.save(message);
@@ -185,9 +190,9 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public void changeStatus(Long ticketId, User user, TicketStatus targetStatus) {
+    public void changeStatus(Long ticketId, Long userId, Long organizationId, TicketStatus targetStatus) {
         // Retrieve ticket scoped to user's organization
-        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         // Only update if ticket status actually changes
@@ -205,6 +210,7 @@ public class AgentTicketService {
             }
 
             // Record status transition
+            User user = userRepo.getReferenceById(userId);
             ticketStatusHistoryRepo.save(
                     new TicketStatusHistory(ticket, oldStatus, targetStatus, user));
 
@@ -213,9 +219,9 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public void assignAgent(Long ticketId, User user, Long targetAgentId) {
+    public void assignAgent(Long ticketId, Long organizationId, Long targetAgentId) {
         // Retrieve ticket scoped to user's organization
-        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
         Long assignedAgentId = ticket.getAssignedAgent() != null ?
                 ticket.getAssignedAgent().getId() : null;
@@ -226,7 +232,7 @@ public class AgentTicketService {
 
             // Retrieve target agent if assigning (not unassigning)
             if (targetAgentId != null) {
-                targetAgent = userRepo.findByIdAndOrganization_Id(targetAgentId, user.getOrganization().getId())
+                targetAgent = userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId)
                         .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + targetAgentId));
             }
 
@@ -238,9 +244,9 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public void markAsRead(Long ticketId, User user) {
+    public void markAsRead(Long ticketId, Long organizationId) {
         // Retrieve ticket scoped to user's organization
-        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
+        Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
 
         if (ticket.hasUnreadCustomerMessage()) {
