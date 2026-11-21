@@ -25,7 +25,7 @@ public class AdminService {
     }
 
     @Transactional
-    public Long createUser(User admin, CreateUserRequest request) {
+    public ViewUserResponse createUser(User admin, CreateUserRequest request) {
         // Confirm that email is not already in use
         if (userRepo.existsByEmail(request.email())) {
             throw new DuplicateResourceException("Email already exists");
@@ -40,7 +40,14 @@ public class AdminService {
                 admin.getOrganization());
         userRepo.save(newUser);
 
-        return newUser.getId();
+        return new ViewUserResponse(
+                newUser.getId(),
+                newUser.getName(),
+                newUser.getEmail(),
+                newUser.getRole(),
+                newUser.isEnabled(),
+                newUser.getCreatedAt()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -49,6 +56,7 @@ public class AdminService {
         Page<User> users = userRepo.findByOrganization_Id(admin.getOrganization().getId(), pageable);
 
         return users.map(user -> new ViewUserResponse(
+                user.getId(),
                 user.getName(),
                 user.getEmail(),
                 user.getRole(),
@@ -57,7 +65,7 @@ public class AdminService {
     }
 
     @Transactional
-    public Long updateUser(Long userId, User admin, UpdateUserRequest request) {
+    public void updateUser(Long userId, User admin, UpdateUserRequest request) {
         // Retrieve user scoped by organization
         User user = userRepo.findByIdAndOrganization_Id(userId, admin.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + userId));
@@ -85,7 +93,5 @@ public class AdminService {
         if (request.isEnabled() != null && !userId.equals(admin.getId())) {
             user.setEnabled(request.isEnabled());
         }
-
-        return userId;
     }
 }

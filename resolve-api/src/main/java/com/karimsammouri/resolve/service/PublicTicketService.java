@@ -2,6 +2,7 @@ package com.karimsammouri.resolve.service;
 
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.CreateTicketResponse;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
@@ -59,7 +60,7 @@ public class PublicTicketService {
     }
 
     @Transactional
-    public Long createTicket(String organizationSlug, CreateTicketRequest request) {
+    public CreateTicketResponse createTicket(String organizationSlug, CreateTicketRequest request) {
         // Retrieve and validate organization by slug
         Organization organization = organizationRepo.findBySlug(organizationSlug)
                 .orElseThrow(() -> new ResourceNotFoundException("Organization not found: " + organizationSlug));
@@ -106,7 +107,12 @@ public class PublicTicketService {
             }
         });
 
-        return ticketId;
+        return new CreateTicketResponse(
+                ticket.getId(),
+                ticket.getSubject(),
+                ticket.getStatus(),
+                ticket.getCreatedAt()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -122,7 +128,7 @@ public class PublicTicketService {
         List<ViewMessageResponse> messageResponses = messages.stream()
                 .map(message -> new ViewMessageResponse(
                         message.getId(),
-                        message.getSenderType().name(),
+                        message.getSenderType(),
                         message.getSenderName(),
                         message.getBody(),
                         message.getCreatedAt()
@@ -134,14 +140,14 @@ public class PublicTicketService {
         return new ViewTicketResponse(
                 ticketId,
                 ticket.getSubject(),
-                ticket.getStatus().name(),
+                ticket.getStatus(),
                 ticket.getCustomerName(),
                 ticket.getCustomerEmail(),
                 messageResponses);
     }
 
     @Transactional
-    public Long addMessage(Long ticketId, String token, AddMessageRequest request) {
+    public ViewMessageResponse addMessage(Long ticketId, String token, AddMessageRequest request) {
         // Validate customer token
         String tokenHash = tokenService.hashToken(token);
         if (!ticketAccessRepo.existsByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash)) {
@@ -179,6 +185,12 @@ public class PublicTicketService {
 
         ticketCacheService.evictAfterCommit(ticketId);
 
-        return message.getId();
+        return new ViewMessageResponse(
+                message.getId(),
+                message.getSenderType(),
+                message.getSenderName(),
+                message.getBody(),
+                message.getCreatedAt()
+        );
     }
 }

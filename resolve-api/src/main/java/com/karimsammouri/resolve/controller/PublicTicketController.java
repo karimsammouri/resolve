@@ -2,6 +2,8 @@ package com.karimsammouri.resolve.controller;
 
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.CreateTicketResponse;
+import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.service.PublicTicketService;
 import jakarta.validation.Valid;
@@ -19,8 +21,8 @@ public class PublicTicketController {
 
     @PostMapping("/organizations/{slug}/tickets")
     @ResponseStatus(HttpStatus.CREATED)
-    public Long createTicket(@PathVariable("slug") String organizationSlug,
-                             @Valid @RequestBody CreateTicketRequest request) {
+    public CreateTicketResponse createTicket(@PathVariable("slug") String organizationSlug,
+                                             @Valid @RequestBody CreateTicketRequest request) {
         return publicTicketService.createTicket(organizationSlug, request);
     }
 
@@ -31,9 +33,9 @@ public class PublicTicketController {
 
     @PostMapping("/tickets/{ticketId}/messages")
     @ResponseStatus(HttpStatus.CREATED)
-    public Long addMessage(@PathVariable Long ticketId,
-                           @RequestParam String token,
-                           @Valid @RequestBody AddMessageRequest request) {
+    public ViewMessageResponse addMessage(@PathVariable Long ticketId,
+                                          @RequestParam String token,
+                                          @Valid @RequestBody AddMessageRequest request) {
         return publicTicketService.addMessage(ticketId, token, request);
     }
 }

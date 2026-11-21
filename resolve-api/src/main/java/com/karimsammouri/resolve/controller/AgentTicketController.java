@@ -1,6 +1,7 @@
 package com.karimsammouri.resolve.controller;
 
 import com.karimsammouri.resolve.dto.request.AgentMessageRequest;
+import com.karimsammouri.resolve.dto.response.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketSummaryResponse;
 import com.karimsammouri.resolve.enums.TicketStatus;
@@ -36,29 +37,32 @@ public class AgentTicketController {
 
     @PostMapping("/tickets/{ticketId}/messages")
     @ResponseStatus(HttpStatus.CREATED)
-    public Long addMessage(@PathVariable Long ticketId,
-                           @AuthenticationPrincipal ResolveUserDetails principal,
-                           @Valid @RequestBody AgentMessageRequest request) {
+    public AgentMessageResponse addMessage(@PathVariable Long ticketId,
+                                           @AuthenticationPrincipal ResolveUserDetails principal,
+                                           @Valid @RequestBody AgentMessageRequest request) {
         return agentTicketService.addMessage(ticketId, principal.getUser(), request);
     }
 
     @PatchMapping("/tickets/{ticketId}/status")
-    public Long changeStatus(@PathVariable Long ticketId,
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void changeStatus(@PathVariable Long ticketId,
                              @AuthenticationPrincipal ResolveUserDetails principal,
                              @RequestParam TicketStatus targetStatus) {
-        return agentTicketService.changeStatus(ticketId, principal.getUser(), targetStatus);
+        agentTicketService.changeStatus(ticketId, principal.getUser(), targetStatus);
     }
 
     @PatchMapping("/tickets/{ticketId}/assignedAgent")
-    public Long assignAgent(@PathVariable Long ticketId,
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void assignAgent(@PathVariable Long ticketId,
                             @AuthenticationPrincipal ResolveUserDetails principal,
                             @RequestParam(required = false) Long targetAgentId) {
-        return agentTicketService.assignAgent(ticketId, principal.getUser(), targetAgentId);
+        agentTicketService.assignAgent(ticketId, principal.getUser(), targetAgentId);
     }
 
     @PatchMapping("/tickets/{ticketId}/read")
-    public Long markAsRead(@PathVariable Long ticketId,
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void markAsRead(@PathVariable Long ticketId,
                            @AuthenticationPrincipal ResolveUserDetails principal) {
-        return agentTicketService.markAsRead(ticketId, principal.getUser());
+        agentTicketService.markAsRead(ticketId, principal.getUser());
     }
 }

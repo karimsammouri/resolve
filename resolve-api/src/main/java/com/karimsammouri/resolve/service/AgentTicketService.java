@@ -80,7 +80,7 @@ public class AgentTicketService {
         List<AgentMessageResponse> messageResponses = messages.stream()
                 .map(message -> new AgentMessageResponse(
                         message.getId(),
-                        message.getSenderType().name(),
+                        message.getSenderType(),
                         message.getSenderName(),
                         message.getBody(),
                         message.isInternalNote(),
@@ -92,7 +92,7 @@ public class AgentTicketService {
                 ticketId,
                 ticket.getOrganization().getId(),
                 ticket.getSubject(),
-                ticket.getStatus().name(),
+                ticket.getStatus(),
                 ticket.getCustomerName(),
                 ticket.getCustomerEmail(),
                 ticket.getAssignedAgent() != null ?
@@ -115,7 +115,7 @@ public class AgentTicketService {
         return tickets.map(ticket -> new AgentTicketSummaryResponse(
                 ticket.getId(),
                 ticket.getSubject(),
-                ticket.getStatus().name(),
+                ticket.getStatus(),
                 ticket.getCustomerName(),
                 ticket.getCustomerEmail(),
                 ticket.getAssignedAgent() != null ?
@@ -126,7 +126,7 @@ public class AgentTicketService {
     }
 
     @Transactional
-    public Long addMessage(Long ticketId, User user, AgentMessageRequest request) {
+    public AgentMessageResponse addMessage(Long ticketId, User user, AgentMessageRequest request) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
@@ -175,11 +175,17 @@ public class AgentTicketService {
             });
         }
 
-        return message.getId();
+        return new AgentMessageResponse(
+                message.getId(),
+                message.getSenderType(),
+                message.getSenderName(),
+                message.getBody(),
+                message.isInternalNote(),
+                message.getCreatedAt());
     }
 
     @Transactional
-    public Long changeStatus(Long ticketId, User user, TicketStatus targetStatus) {
+    public void changeStatus(Long ticketId, User user, TicketStatus targetStatus) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
@@ -204,12 +210,10 @@ public class AgentTicketService {
 
             ticketCacheService.evictAfterCommit(ticketId);
         }
-
-        return ticketId;
     }
 
     @Transactional
-    public Long assignAgent(Long ticketId, User user, Long targetAgentId) {
+    public void assignAgent(Long ticketId, User user, Long targetAgentId) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
@@ -231,12 +235,10 @@ public class AgentTicketService {
 
             ticketCacheService.evictAfterCommit(ticketId);
         }
-
-        return ticketId;
     }
 
     @Transactional
-    public Long markAsRead(Long ticketId, User user) {
+    public void markAsRead(Long ticketId, User user) {
         // Retrieve ticket scoped to user's organization
         Ticket ticket = ticketRepo.findByIdAndOrganization_Id(ticketId, user.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Ticket not found: #" + ticketId));
@@ -244,7 +246,5 @@ public class AgentTicketService {
         if (ticket.hasUnreadCustomerMessage()) {
             ticket.setHasUnreadCustomerMessage(false);
         }
-
-        return ticketId;
     }
 }

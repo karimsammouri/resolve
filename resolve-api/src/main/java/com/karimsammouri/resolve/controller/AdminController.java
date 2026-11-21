@@ -23,7 +23,7 @@ public class AdminController {
 
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
-    public Long createUser(@AuthenticationPrincipal ResolveUserDetails principal,
+    public ViewUserResponse createUser(@AuthenticationPrincipal ResolveUserDetails principal,
                            @Valid @RequestBody CreateUserRequest request) {
         return adminService.createUser(principal.getUser(), request);
     }
@@ -34,9 +34,10 @@ public class AdminController {
     }
 
     @PatchMapping("/users/{userId}")
-    public Long updateUser(@PathVariable Long userId,
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void updateUser(@PathVariable Long userId,
                            @AuthenticationPrincipal ResolveUserDetails principal,
-                           @RequestBody UpdateUserRequest request) {
-        return adminService.updateUser(userId, principal.getUser(), request);
+                           @Valid @RequestBody UpdateUserRequest request) {
+        adminService.updateUser(userId, principal.getUser(), request);
     }
 }
