@@ -5,6 +5,7 @@ import com.karimsammouri.resolve.dto.request.UpdateUserRequest;
 import com.karimsammouri.resolve.dto.response.ViewUserResponse;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.exception.DuplicateResourceException;
+import com.karimsammouri.resolve.exception.ForbiddenOperationException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
 import com.karimsammouri.resolve.repository.UserRepository;
 import org.springframework.data.domain.Page;
@@ -70,6 +71,12 @@ public class AdminService {
         User user = userRepo.findByIdAndOrganization_Id(userId, admin.getOrganization().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found: #" + userId));
 
+        // Prevent administrator from changing their own role or enabled status
+        if (userId.equals(admin.getId()) &&
+                (request.role() != null || request.isEnabled() != null)) {
+            throw new ForbiddenOperationException("Administrators cannot change their own role or enabled status");
+        }
+
         // Validate email before modifying entity
         if (request.email() != null &&
                 !request.email().equals(user.getEmail()) &&
@@ -87,10 +94,10 @@ public class AdminService {
         if (request.password() != null) {
             user.setPasswordHash(passwordEncoder.encode(request.password()));
         }
-        if (request.role() != null && !userId.equals(admin.getId())) {
+        if (request.role() != null) {
             user.setRole(request.role());
         }
-        if (request.isEnabled() != null && !userId.equals(admin.getId())) {
+        if (request.isEnabled() != null) {
             user.setEnabled(request.isEnabled());
         }
     }
