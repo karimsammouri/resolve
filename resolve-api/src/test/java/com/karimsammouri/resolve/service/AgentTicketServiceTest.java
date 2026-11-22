@@ -10,6 +10,9 @@ import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.exception.InvalidTicketStateException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
+import com.karimsammouri.resolve.messaging.EmailNotification;
+import com.karimsammouri.resolve.messaging.EmailNotificationPublisher;
+import com.karimsammouri.resolve.messaging.EmailNotificationType;
 import com.karimsammouri.resolve.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,7 +33,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class AgentTicketServiceTest {
-    private final EmailService emailService = mock(EmailService.class);
+    private final EmailNotificationPublisher emailPublisher = mock(EmailNotificationPublisher.class);
+
     private final AgentTicketCacheService ticketCacheService = mock(AgentTicketCacheService.class);
 
     private final UserRepository userRepo = mock(UserRepository.class);
@@ -39,7 +43,7 @@ public class AgentTicketServiceTest {
     private final MessageRepository messageRepo = mock(MessageRepository.class);
 
     private final AgentTicketService agentTicketService = new AgentTicketService(
-            emailService,
+            emailPublisher,
             ticketCacheService,
             userRepo,
             ticketRepo,
@@ -49,6 +53,7 @@ public class AgentTicketServiceTest {
 
     private Long ticketId;
     private Long organizationId;
+    private Long userId;
     private Organization organization;
     private Ticket ticket;
     private User user;
@@ -57,6 +62,7 @@ public class AgentTicketServiceTest {
     void setup() {
         ticketId = 123L;
         organizationId = 1L;
+        userId = 2L;
 
         organization = new Organization("Acme", "acme");
         ReflectionTestUtils.setField(organization, "id", organizationId);
@@ -73,15 +79,14 @@ public class AgentTicketServiceTest {
                 "hashed-password",
                 UserRole.AGENT,
                 organization);
+        ReflectionTestUtils.setField(user, "id", 2L);
 
-        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
-                .thenReturn(Optional.of(ticket));
+        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)).thenReturn(Optional.of(ticket));
+        when(userRepo.getReferenceById(userId)).thenReturn(user);
     }
 
     @Test
     void viewTicket_shouldReturnTicketAndMessages() {
-        ticket.setHasUnreadCustomerMessage(true);
-
         Message message = new Message(
                 ticket,
                 MessageSenderType.CUSTOMER,
@@ -92,33 +97,58 @@ public class AgentTicketServiceTest {
 
         when(messageRepo.findByTicket_IdOrderByCreatedAtAsc(ticketId)).thenReturn(List.of(message));
 
-        AgentTicketResponse response = agentTicketService.viewTicket(ticketId, user);
+        AgentTicketResponse response = agentTicketService.viewTicket(ticketId, organizationId);
 
-        assertFalse(ticket.hasUnreadCustomerMessage());
         assertEquals(ticketId, response.ticketId());
         assertEquals("Cannot log in", response.subject());
-        assertEquals("OPEN", response.status());
+        assertEquals(TicketStatus.OPEN, response.status());
         assertEquals("John Smith", response.customerName());
         assertEquals("johnsmith@example.com", response.customerEmail());
         assertNull(response.assignedAgentName());
         assertEquals(1, response.messages().size());
 
-        verify(ticketRepo).save(ticket);
-
         AgentMessageResponse returnedMessage = response.messages().get(0);
 
-        assertEquals("CUSTOMER", returnedMessage.senderType());
+        assertEquals(MessageSenderType.CUSTOMER, returnedMessage.senderType());
         assertEquals("John Smith", returnedMessage.senderName());
         assertEquals("I cannot log in", returnedMessage.body());
         assertFalse(returnedMessage.isInternalNote());
+
+        verify(ticketCacheService).get(ticketId);
+        verify(ticketCacheService).put(ticketId, response);
+        verify(ticketRepo, never()).save(any(Ticket.class));
+    }
+
+    @Test
+    void viewTicket_withCacheHit_shouldReturnCachedResponse() {
+        AgentTicketResponse cachedResponse = mock(AgentTicketResponse.class);
+
+        when(ticketCacheService.get(ticketId)).thenReturn(cachedResponse);
+        when(cachedResponse.organizationId()).thenReturn(organizationId);
+
+        AgentTicketResponse result = agentTicketService.viewTicket(ticketId, organizationId);
+
+        assertSame(cachedResponse, result);
+
+        verifyNoInteractions(ticketRepo, messageRepo);
+    }
+
+    @Test
+    void viewTicket_withCacheFromDifferentOrganization_shouldRejectAccess() {
+        AgentTicketResponse cachedResponse = mock(AgentTicketResponse.class);
+
+        when(ticketCacheService.get(ticketId)).thenReturn(cachedResponse);
+        when(cachedResponse.organizationId()).thenReturn(2L);
+
+        assertThrows(ResourceNotFoundException.class,
+                () -> agentTicketService.viewTicket(ticketId, organizationId));
     }
 
     @Test
     void viewTicket_shouldRejectInvalidTicket() {
-        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
-                .thenReturn(Optional.empty());
+        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)).thenReturn(Optional.empty());
 
-        assertThrows(ResourceNotFoundException.class, () -> agentTicketService.viewTicket(ticketId, user));
+        assertThrows(ResourceNotFoundException.class, () -> agentTicketService.viewTicket(ticketId, organizationId));
 
         verify(messageRepo, never()).findByTicket_IdOrderByCreatedAtAsc(ticketId);
     }
@@ -144,7 +174,8 @@ public class AgentTicketServiceTest {
         when(ticketRepo.findByOrganization_Id(organizationId, pageable))
                 .thenReturn(ticketPage);
 
-        Page<AgentTicketSummaryResponse> result = agentTicketService.viewTickets(user, pageable);
+        Page<AgentTicketSummaryResponse> result =
+                agentTicketService.viewTickets(organizationId, pageable);
         assertEquals(2, result.getContent().size());
         assertEquals(0, result.getNumber());
         assertEquals(2, result.getSize());
@@ -153,7 +184,7 @@ public class AgentTicketServiceTest {
 
         AgentTicketSummaryResponse first = result.getContent().get(0);
         assertEquals("Cannot log in", first.subject());
-        assertEquals("OPEN", first.status());
+        assertEquals(TicketStatus.OPEN, first.status());
         assertEquals("John Smith", first.customerName());
         assertEquals("johnsmith@example.com", first.customerEmail());
         assertNull(first.assignedAgentName());
@@ -177,7 +208,7 @@ public class AgentTicketServiceTest {
         TransactionSynchronizationManager.initSynchronization();
 
         try {
-            agentTicketService.addMessage(ticketId, user, request);
+            agentTicketService.addMessage(ticketId, userId, organizationId, "Agent Smith", request);
 
             ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
 
@@ -194,17 +225,26 @@ public class AgentTicketServiceTest {
 
             assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));
 
-            // Email must not be sent before the transaction commits
-            verifyNoInteractions(emailService);
+            // Email notification must not be published before the transaction commits
+            verifyNoInteractions(emailPublisher);
 
             // Simulate transaction commit
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
-            verify(emailService).sendAgentReplyEmail(
-                    ticket.getCustomerEmail(),
-                    ticket.getCustomerName(),
-                    ticketId,
-                    ticket.getSubject());
+            ArgumentCaptor<EmailNotification> notificationCaptor =
+                    ArgumentCaptor.forClass(EmailNotification.class);
+
+            verify(emailPublisher).publish(notificationCaptor.capture());
+
+            EmailNotification notification = notificationCaptor.getValue();
+
+            assertEquals(EmailNotificationType.AGENT_REPLY, notification.type());
+            assertEquals("johnsmith@example.com", notification.customerEmail());
+            assertEquals("John Smith", notification.customerName());
+            assertEquals(ticketId, notification.ticketId());
+            assertEquals("Cannot log in", notification.ticketSubject());
+
+            verify(ticketCacheService).evictAfterCommit(ticketId);
 
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
@@ -218,25 +258,36 @@ public class AgentTicketServiceTest {
 
         AgentMessageRequest request = new AgentMessageRequest("Internal investigation notes.", true);
 
-        agentTicketService.addMessage(ticketId, user, request);
+        TransactionSynchronizationManager.initSynchronization();
 
-        ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        try {
+            agentTicketService.addMessage(ticketId, userId, organizationId, "Agent Smith", request);
 
-        verify(messageRepo).save(messageCaptor.capture());
+            ArgumentCaptor<Message> messageCaptor = ArgumentCaptor.forClass(Message.class);
 
-        Message message = messageCaptor.getValue();
+            verify(messageRepo).save(messageCaptor.capture());
 
-        assertEquals(ticket, message.getTicket());
-        assertEquals(MessageSenderType.STAFF, message.getSenderType());
-        assertEquals(user, message.getSenderUser());
-        assertEquals("Agent Smith", message.getSenderName());
-        assertEquals("Internal investigation notes.", message.getBody());
-        assertTrue(message.isInternalNote());
+            Message message = messageCaptor.getValue();
 
-        assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));
+            assertEquals(ticket, message.getTicket());
+            assertEquals(MessageSenderType.STAFF, message.getSenderType());
+            assertEquals(user, message.getSenderUser());
+            assertEquals("Agent Smith", message.getSenderName());
+            assertEquals("Internal investigation notes.", message.getBody());
+            assertTrue(message.isInternalNote());
 
-        // Email must not be sent before the transaction commits
-        verifyNoInteractions(emailService);
+            assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));
+
+            // Simulate transaction commit
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+            // Verify no email notification was published
+            verifyNoInteractions(emailPublisher);
+            verify(ticketCacheService).evictAfterCommit(ticketId);
+
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     @Test
@@ -249,7 +300,7 @@ public class AgentTicketServiceTest {
         TransactionSynchronizationManager.initSynchronization();
 
         try {
-            agentTicketService.addMessage(ticketId, user, request);
+            agentTicketService.addMessage(ticketId, userId, organizationId, "Agent Smith", request);
 
             assertEquals(TicketStatus.OPEN, ticket.getStatus());
             assertNull(ticket.getResolvedAt());
@@ -257,17 +308,15 @@ public class AgentTicketServiceTest {
             verify(ticketStatusHistoryRepo).save(any(TicketStatusHistory.class));
             verify(messageRepo).save(any(Message.class));
 
-            // Email must not be sent before the transaction commits
-            verifyNoInteractions(emailService);
+            // Email notification must not be published before the transaction commits
+            verifyNoInteractions(emailPublisher);
 
             // Simulate transaction commit
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
-            verify(emailService).sendAgentReplyEmail(
-                    ticket.getCustomerEmail(),
-                    ticket.getCustomerName(),
-                    ticketId,
-                    ticket.getSubject());
+            verify(emailPublisher).publish(any(EmailNotification.class));
+            verify(ticketCacheService).evictAfterCommit(ticketId);
+
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
@@ -279,10 +328,16 @@ public class AgentTicketServiceTest {
 
         AgentMessageRequest request = new AgentMessageRequest("Following up on this issue.", false);
 
-        assertThrows(InvalidTicketStateException.class, () -> agentTicketService.addMessage(ticketId, user, request));
+        assertThrows(InvalidTicketStateException.class, () -> agentTicketService.addMessage(
+                ticketId,
+                userId,
+                organizationId,
+                "Agent Smith",
+                request));
 
         verify(ticketStatusHistoryRepo, never()).save(any(TicketStatusHistory.class));
         verify(messageRepo, never()).save(any(Message.class));
+        verify(ticketCacheService, never()).evictAfterCommit(ticketId);
     }
 
     @Test
@@ -292,7 +347,7 @@ public class AgentTicketServiceTest {
         LocalDateTime previousUpdatedAt = LocalDateTime.of(2025, 1, 1, 0, 0);
         ticket.setUpdatedAt(previousUpdatedAt);
 
-        agentTicketService.changeStatus(ticketId, user, TicketStatus.RESOLVED);
+        agentTicketService.changeStatus(ticketId, userId, organizationId, TicketStatus.RESOLVED);
 
         assertEquals(TicketStatus.RESOLVED, ticket.getStatus());
         assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));
@@ -305,21 +360,24 @@ public class AgentTicketServiceTest {
         TicketStatusHistory statusHistory = captor.getValue();
         assertEquals(TicketStatus.OPEN, statusHistory.getOldStatus());
         assertEquals(TicketStatus.RESOLVED, statusHistory.getNewStatus());
+        assertEquals(user, statusHistory.getUpdatedByUser());
+
+        verify(ticketCacheService).evictAfterCommit(ticketId);
     }
 
     @Test
     void changeStatus_shouldRejectInvalidTicket() {
         assertEquals(TicketStatus.OPEN, ticket.getStatus());
 
-        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
-                .thenReturn(Optional.empty());
+        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> agentTicketService.changeStatus(ticketId, user, TicketStatus.RESOLVED));
+                () -> agentTicketService.changeStatus(ticketId, userId, organizationId, TicketStatus.RESOLVED));
 
         assertEquals(TicketStatus.OPEN, ticket.getStatus());
 
         verify(ticketStatusHistoryRepo, never()).save(any(TicketStatusHistory.class));
+        verify(ticketCacheService, never()).evictAfterCommit(ticketId);
     }
 
     @Test
@@ -331,13 +389,26 @@ public class AgentTicketServiceTest {
         LocalDateTime previousUpdatedAt = LocalDateTime.of(2025, 1, 1, 0, 0);
         ticket.setUpdatedAt(previousUpdatedAt);
 
-        when(userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId))
-                .thenReturn(Optional.of(user));
+        when(userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId)).thenReturn(Optional.of(user));
 
-        agentTicketService.assignAgent(ticketId, user, targetAgentId);
+        agentTicketService.assignAgent(ticketId, organizationId, targetAgentId);
 
         assertEquals(user, ticket.getAssignedAgent());
         assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));
+
+        verify(ticketCacheService).evictAfterCommit(ticketId);
+    }
+
+    @Test
+    void assignAgent_withNullAgentId_shouldUnassignAgent() {
+        ticket.setAssignedAgent(user);
+
+        agentTicketService.assignAgent(ticketId, organizationId, null);
+
+        assertNull(ticket.getAssignedAgent());
+
+        verifyNoInteractions(userRepo);
+        verify(ticketCacheService).evictAfterCommit(ticketId);
     }
 
     @Test
@@ -346,13 +417,14 @@ public class AgentTicketServiceTest {
 
         Long targetAgentId = 1L;
 
-        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId))
-                .thenReturn(Optional.empty());
+        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> agentTicketService.assignAgent(ticketId, user, targetAgentId));
+                () -> agentTicketService.assignAgent(ticketId, organizationId, targetAgentId));
 
         assertNull(ticket.getAssignedAgent());
+
+        verify(ticketCacheService, never()).evictAfterCommit(ticketId);
     }
 
     @Test
@@ -361,12 +433,29 @@ public class AgentTicketServiceTest {
 
         Long targetAgentId = 1L;
 
-        when(userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId))
-                .thenReturn(Optional.empty());
+        when(userRepo.findByIdAndOrganization_Id(targetAgentId, organizationId)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
-                () -> agentTicketService.assignAgent(ticketId, user, targetAgentId));
+                () -> agentTicketService.assignAgent(ticketId, organizationId, targetAgentId));
 
         assertNull(ticket.getAssignedAgent());
+
+        verify(ticketCacheService, never()).evictAfterCommit(ticketId);
+    }
+
+    @Test
+    void markAsRead_shouldClearUnreadFlag() {
+        ticket.setHasUnreadCustomerMessage(true);
+
+        agentTicketService.markAsRead(ticketId, organizationId);
+
+        assertFalse(ticket.hasUnreadCustomerMessage());
+    }
+
+    @Test
+    void markAsRead_shouldRejectInvalidTicket() {
+        when(ticketRepo.findByIdAndOrganization_Id(ticketId, organizationId)).thenReturn(Optional.empty());
+
+        assertThrows(ResourceNotFoundException.class, () -> agentTicketService.markAsRead(ticketId, organizationId));
     }
 }

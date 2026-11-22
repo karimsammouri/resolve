@@ -1,4 +1,4 @@
-package com.karimsammouri.resolve.service;
+package com.karimsammouri.emailservice.service;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;

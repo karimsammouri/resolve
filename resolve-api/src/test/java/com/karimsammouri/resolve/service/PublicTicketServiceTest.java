@@ -2,6 +2,7 @@ package com.karimsammouri.resolve.service;
 
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.CreateTicketResponse;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
 import com.karimsammouri.resolve.entity.*;
@@ -10,6 +11,9 @@ import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.exception.InvalidTicketAccessException;
 import com.karimsammouri.resolve.exception.InvalidTicketStateException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
+import com.karimsammouri.resolve.messaging.EmailNotification;
+import com.karimsammouri.resolve.messaging.EmailNotificationPublisher;
+import com.karimsammouri.resolve.messaging.EmailNotificationType;
 import com.karimsammouri.resolve.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,8 +30,9 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 public class PublicTicketServiceTest {
+    private final EmailNotificationPublisher emailPublisher = mock(EmailNotificationPublisher.class);
+
     private final TokenService tokenService = mock(TokenService.class);
-    private final EmailService emailService = mock(EmailService.class);
     private final AgentTicketCacheService ticketCacheService = mock(AgentTicketCacheService.class);
 
     private final OrganizationRepository organizationRepo = mock(OrganizationRepository.class);
@@ -38,8 +43,8 @@ public class PublicTicketServiceTest {
 
     private final PublicTicketService publicTicketService = new PublicTicketService(
             "http://localhost:8080",
+            emailPublisher,
             tokenService,
-            emailService,
             ticketCacheService,
             organizationRepo,
             ticketRepo,
@@ -69,8 +74,8 @@ public class PublicTicketServiceTest {
 
         when(tokenService.generateToken()).thenReturn(token);
         when(tokenService.hashToken(token)).thenReturn(tokenHash);
-        when(ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash))
-                .thenReturn(Optional.of(mock(CustomerTicketAccess.class)));
+        when(ticketAccessRepo.existsByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash))
+                .thenReturn(true);
         when(ticketRepo.findById(ticketId)).thenReturn(Optional.of(ticket));
     }
 
@@ -95,8 +100,9 @@ public class PublicTicketServiceTest {
         TransactionSynchronizationManager.initSynchronization();
 
         try {
-            Long generatedTicketId = publicTicketService.createTicket(organizationSlug, request);
-            assertEquals(ticketId, generatedTicketId);
+            CreateTicketResponse response = publicTicketService.createTicket(organizationSlug, request);
+
+            assertEquals(ticketId, response.ticketId());
 
             ArgumentCaptor<Ticket> ticketCaptor = ArgumentCaptor.forClass(Ticket.class);
             verify(ticketRepo).save(ticketCaptor.capture());
@@ -118,18 +124,24 @@ public class PublicTicketServiceTest {
             verify(tokenService).hashToken(token);
             verify(ticketAccessRepo).save(any(CustomerTicketAccess.class));
 
-            // Email must not be sent before the transaction commits
-            verifyNoInteractions(emailService);
+            // Email notification must not be published before the transaction commits
+            verifyNoInteractions(emailPublisher);
 
             // Simulate transaction commit
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
 
-            verify(emailService).sendTicketConfirmation(
-                    "johnsmith@example.com",
-                    "John Smith",
-                    ticketId,
-                    "Cannot log in",
-                    "http://localhost:8080/api/public/tickets/123?token=" + token);
+            ArgumentCaptor<EmailNotification> notificationCaptor =
+                    ArgumentCaptor.forClass(EmailNotification.class);
+
+            verify(emailPublisher).publish(notificationCaptor.capture());
+
+            EmailNotification notification = notificationCaptor.getValue();
+
+            assertEquals(EmailNotificationType.TICKET_CONFIRMATION, notification.type());
+            assertEquals("johnsmith@example.com", notification.customerEmail());
+            assertEquals("John Smith", notification.customerName());
+            assertEquals(ticketId, notification.ticketId());
+            assertEquals("Cannot log in", notification.ticketSubject());
 
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
@@ -145,8 +157,7 @@ public class PublicTicketServiceTest {
                 "Cannot log in",
                 "I cannot log in");
 
-        when(organizationRepo.findBySlug(organizationSlug))
-                .thenReturn(Optional.empty());
+        when(organizationRepo.findBySlug(organizationSlug)).thenReturn(Optional.empty());
 
         assertThrows(ResourceNotFoundException.class,
                 () -> publicTicketService.createTicket(organizationSlug, request));
@@ -154,7 +165,7 @@ public class PublicTicketServiceTest {
         verify(ticketRepo, never()).save(any(Ticket.class));
         verify(messageRepo, never()).save(any(Message.class));
         verify(ticketAccessRepo, never()).save(any(CustomerTicketAccess.class));
-        verifyNoInteractions(emailService);
+        verifyNoInteractions(emailPublisher);
     }
 
     @Test
@@ -174,22 +185,22 @@ public class PublicTicketServiceTest {
 
         assertEquals(ticketId, response.ticketId());
         assertEquals("Cannot log in", response.subject());
-        assertEquals("OPEN", response.status());
+        assertEquals(TicketStatus.OPEN, response.status());
         assertEquals("John Smith", response.customerName());
         assertEquals("johnsmith@example.com", response.customerEmail());
         assertEquals(1, response.messages().size());
 
         ViewMessageResponse returnedMessage = response.messages().get(0);
 
-        assertEquals("CUSTOMER", returnedMessage.senderType());
+        assertEquals(MessageSenderType.CUSTOMER, returnedMessage.senderType());
         assertEquals("John Smith", returnedMessage.senderName());
         assertEquals("I cannot log in", returnedMessage.body());
     }
 
     @Test
     void viewTicket_shouldRejectInvalidOrRevokedToken() {
-        when(ticketAccessRepo.findByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash))
-                .thenReturn(Optional.empty());
+        when(ticketAccessRepo.existsByTicket_IdAndTokenHashAndRevokedAtIsNull(ticketId, tokenHash))
+                .thenReturn(false);
 
         assertThrows(InvalidTicketAccessException.class, () -> publicTicketService.viewTicket(ticketId, token));
 
@@ -204,7 +215,11 @@ public class PublicTicketServiceTest {
         ticket.setHasUnreadCustomerMessage(false);
 
         AddMessageRequest request = new AddMessageRequest("I cannot log in.");
-        publicTicketService.addMessage(ticketId, token, request);
+        ViewMessageResponse response = publicTicketService.addMessage(ticketId, token, request);
+
+        assertEquals(MessageSenderType.CUSTOMER, response.senderType());
+        assertEquals("John Smith", response.senderName());
+        assertEquals("I cannot log in.", response.body());
 
         assertTrue(ticket.hasUnreadCustomerMessage());
         assertTrue(ticket.getUpdatedAt().isAfter(previousUpdatedAt));

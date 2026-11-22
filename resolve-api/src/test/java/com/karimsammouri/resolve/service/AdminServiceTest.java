@@ -7,7 +7,9 @@ import com.karimsammouri.resolve.entity.Organization;
 import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.exception.DuplicateResourceException;
+import com.karimsammouri.resolve.exception.ForbiddenOperationException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
+import com.karimsammouri.resolve.repository.OrganizationRepository;
 import com.karimsammouri.resolve.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,9 +30,10 @@ import static org.mockito.Mockito.*;
 public class AdminServiceTest {
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
 
+    private final OrganizationRepository organizationRepo = mock(OrganizationRepository.class);
     private final UserRepository userRepo = mock(UserRepository.class);
 
-    private final AdminService adminService = new AdminService(passwordEncoder, userRepo);
+    private final AdminService adminService = new AdminService(passwordEncoder, organizationRepo, userRepo);
 
     private Long organizationId;
     private Organization organization;
@@ -62,9 +65,12 @@ public class AdminServiceTest {
                 UserRole.AGENT);
 
         when(userRepo.existsByEmail(request.email())).thenReturn(false);
+        when(organizationRepo.getReferenceById(organizationId)).thenReturn(organization);
         when(passwordEncoder.encode(request.password())).thenReturn("encoded-password");
 
-        adminService.createUser(admin, request);
+        ViewUserResponse result = adminService.createUser(organizationId, request);
+        assertEquals("Agent Smith", result.name());
+        assertEquals("agent@acme.com", result.email());
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepo).save(captor.capture());
@@ -74,7 +80,7 @@ public class AdminServiceTest {
         assertEquals("agent@acme.com", newUser.getEmail());
         assertEquals("encoded-password", newUser.getPasswordHash());
         assertEquals(UserRole.AGENT, newUser.getRole());
-        assertEquals(admin.getOrganization(), newUser.getOrganization());
+        assertEquals(organization, newUser.getOrganization());
         assertTrue(newUser.isEnabled());
     }
 
@@ -88,7 +94,7 @@ public class AdminServiceTest {
 
         when(userRepo.existsByEmail(request.email())).thenReturn(true);
 
-        assertThrows(DuplicateResourceException.class, () -> adminService.createUser(admin, request));
+        assertThrows(DuplicateResourceException.class, () -> adminService.createUser(organizationId, request));
 
         verify(userRepo, never()).save(any(User.class));
     }
@@ -113,10 +119,9 @@ public class AdminServiceTest {
         Pageable pageable = PageRequest.of(0, 2);
         Page<User> userPage = new PageImpl<>(List.of(user1, user2), pageable, 5);
 
-        when(userRepo.findByOrganization_Id(organizationId, pageable))
-                .thenReturn(userPage);
+        when(userRepo.findByOrganization_Id(organizationId, pageable)).thenReturn(userPage);
 
-        Page<ViewUserResponse> result = adminService.viewUsers(admin, pageable);
+        Page<ViewUserResponse> result = adminService.viewUsers(organizationId, pageable);
         assertEquals(2, result.getContent().size());
         assertEquals(0, result.getNumber());
         assertEquals(2, result.getSize());
@@ -141,10 +146,9 @@ public class AdminServiceTest {
     @Test
     void viewUsers_shouldReturnEmptyPageWhenNoUsersExist() {
         Pageable pageable = PageRequest.of(0, 2);
-        when(userRepo.findByOrganization_Id(organizationId, pageable))
-                .thenReturn(Page.empty(pageable));
+        when(userRepo.findByOrganization_Id(organizationId, pageable)).thenReturn(Page.empty(pageable));
 
-        Page<ViewUserResponse> result = adminService.viewUsers(admin, pageable);
+        Page<ViewUserResponse> result = adminService.viewUsers(organizationId, pageable);
         assertTrue(result.isEmpty());
     }
 
@@ -159,10 +163,8 @@ public class AdminServiceTest {
                 UserRole.AGENT,
                 organization);
 
-        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId))
-                .thenReturn(Optional.of(user));
-        when(userRepo.existsByEmail("adminsmith@acme.com"))
-                .thenReturn(false);
+        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId)).thenReturn(Optional.of(user));
+        when(userRepo.existsByEmail("admin@acme.com")).thenReturn(false);
 
         UpdateUserRequest request = new UpdateUserRequest(
                 "Admin Smith",
@@ -171,7 +173,7 @@ public class AdminServiceTest {
                 UserRole.ADMINISTRATOR,
                 null);
 
-        adminService.updateUser(targetUserId, admin, request);
+        adminService.updateUser(targetUserId, adminId, organizationId, request);
 
         assertEquals("Admin Smith", user.getName());
         assertEquals("admin@acme.com", user.getEmail());
@@ -185,8 +187,7 @@ public class AdminServiceTest {
     void updateUser_shouldRejectInvalidUser() {
         Long targetUserId = 5L;
 
-        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId))
-                .thenReturn(Optional.empty());
+        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId)).thenReturn(Optional.empty());
 
         UpdateUserRequest request = new UpdateUserRequest(
                 "Agent Smith",
@@ -195,7 +196,8 @@ public class AdminServiceTest {
                 UserRole.ADMINISTRATOR,
                 true);
 
-        assertThrows(ResourceNotFoundException.class, () -> adminService.updateUser(targetUserId, admin, request));
+        assertThrows(ResourceNotFoundException.class,
+                () -> adminService.updateUser(targetUserId, adminId, organizationId, request));
     }
 
     @Test
@@ -209,10 +211,8 @@ public class AdminServiceTest {
                 UserRole.AGENT,
                 organization);
 
-        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId))
-                .thenReturn(Optional.of(user));
-        when(userRepo.existsByEmail("admin@acme.com"))
-                .thenReturn(true);
+        when(userRepo.findByIdAndOrganization_Id(targetUserId, organizationId)).thenReturn(Optional.of(user));
+        when(userRepo.existsByEmail("admin@acme.com")).thenReturn(true);
 
         UpdateUserRequest request = new UpdateUserRequest(
                 "Admin Smith",
@@ -221,14 +221,14 @@ public class AdminServiceTest {
                 UserRole.ADMINISTRATOR,
                 null);
 
-        assertThrows(DuplicateResourceException.class, () -> adminService.updateUser(targetUserId, admin, request));
+        assertThrows(DuplicateResourceException.class,
+                () -> adminService.updateUser(targetUserId, adminId, organizationId, request));
         assertEquals("agent@acme.com", user.getEmail());
     }
 
     @Test
     void updateUser_shouldPreventAdminFromChangingOwnRoleAndEnabledStatus() {
-        when(userRepo.findByIdAndOrganization_Id(adminId, organizationId))
-                .thenReturn(Optional.of(admin));
+        when(userRepo.findByIdAndOrganization_Id(adminId, organizationId)).thenReturn(Optional.of(admin));
 
         UpdateUserRequest request = new UpdateUserRequest(
                 null,
@@ -237,7 +237,8 @@ public class AdminServiceTest {
                 UserRole.AGENT,
                 false);
 
-        adminService.updateUser(adminId, admin, request);
+        assertThrows(ForbiddenOperationException.class,
+                () -> adminService.updateUser(adminId, adminId, organizationId, request));
 
         assertEquals("Admin Smith", admin.getName());
         assertEquals("admin@acme.com", admin.getEmail());
