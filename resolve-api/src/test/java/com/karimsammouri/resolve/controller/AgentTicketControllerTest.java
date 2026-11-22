@@ -1,14 +1,13 @@
 package com.karimsammouri.resolve.controller;
 
 import com.karimsammouri.resolve.config.SecurityConfig;
+import com.karimsammouri.resolve.config.SpringDataWebConfig;
 import com.karimsammouri.resolve.dto.request.AgentMessageRequest;
 import com.karimsammouri.resolve.dto.response.AgentMessageResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketResponse;
 import com.karimsammouri.resolve.dto.response.AgentTicketSummaryResponse;
-import com.karimsammouri.resolve.entity.Organization;
-import com.karimsammouri.resolve.entity.User;
+import com.karimsammouri.resolve.enums.MessageSenderType;
 import com.karimsammouri.resolve.enums.TicketStatus;
-import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.security.ResolveUserDetails;
 import com.karimsammouri.resolve.service.AgentTicketService;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +21,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @EnableWebSecurity
 @WebMvcTest(AgentTicketController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, SpringDataWebConfig.class})
 public class AgentTicketControllerTest {
     @Autowired
     private MockMvc mockMvc;
@@ -49,26 +49,27 @@ public class AgentTicketControllerTest {
     @MockitoBean
     private AgentTicketService agentTicketService;
 
-    private User user;
+    private Long userId;
+    private Long organizationId;
     private ResolveUserDetails principal;
 
     @BeforeEach
     void setup() {
-        user = new User(
-                "Agent Smith",
-                "agent@acme.com",
-                "hashed-password",
-                UserRole.AGENT,
-                mock(Organization.class));
+        userId = 1L;
+        organizationId = 10L;
+        principal = mock(ResolveUserDetails.class);
 
-        principal = new ResolveUserDetails(user);
+        when(principal.getId()).thenReturn(userId);
+        when(principal.getName()).thenReturn("Agent Smith");
+        when(principal.getOrganizationId()).thenReturn(organizationId);
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_AGENT"))).when(principal).getAuthorities();
     }
 
     @Test
     void viewTicket_withAuthentication_shouldReturnTicket() throws Exception {
         AgentMessageResponse messageResponse = new AgentMessageResponse(
                 1L,
-                "CUSTOMER",
+                MessageSenderType.CUSTOMER,
                 "John Doe",
                 "I cannot log in",
                 false,
@@ -78,7 +79,7 @@ public class AgentTicketControllerTest {
                 123L,
                 5L,
                 "Unable to log in",
-                "OPEN",
+                TicketStatus.OPEN,
                 "John Doe",
                 "john@example.com",
                 null,
@@ -86,8 +87,7 @@ public class AgentTicketControllerTest {
                 LocalDateTime.of(2026, 11, 7, 10, 0),
                 List.of(messageResponse));
 
-        when(agentTicketService.viewTicket(123L, user))
-                .thenReturn(ticketResponse);
+        when(agentTicketService.viewTicket(123L, organizationId)).thenReturn(ticketResponse);
 
         mockMvc.perform(get("/api/agent/tickets/123")
                         .with(user(principal)))
@@ -99,7 +99,7 @@ public class AgentTicketControllerTest {
                 .andExpect(jsonPath("$.messages.length()").value(1))
                 .andExpect(jsonPath("$.messages[0].body").value("I cannot log in"));
 
-        verify(agentTicketService).viewTicket(123L, user);
+        verify(agentTicketService).viewTicket(123L, organizationId);
     }
 
     @Test
@@ -115,7 +115,7 @@ public class AgentTicketControllerTest {
         Pageable pageable = PageRequest.of(0, 5);
         Page<AgentTicketSummaryResponse> page = new PageImpl<>(List.of(), pageable, 0);
 
-        when(agentTicketService.viewTickets(user, pageable)).thenReturn(page);
+        when(agentTicketService.viewTickets(organizationId, pageable)).thenReturn(page);
 
         mockMvc.perform(get("/api/agent/tickets")
                         .with(user(principal))
@@ -123,22 +123,29 @@ public class AgentTicketControllerTest {
                         .param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.number").value(0))
-                .andExpect(jsonPath("$.size").value(5))
-                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.size").value(5))
+                .andExpect(jsonPath("$.page.totalElements").value(0))
                 .andExpect(jsonPath("$.content").isEmpty());
 
-        verify(agentTicketService).viewTickets(user, pageable);
+        verify(agentTicketService).viewTickets(organizationId, pageable);
     }
 
     @Test
     void addMessage_withValidRequest_shouldReturnCreated() throws Exception {
         AgentMessageRequest request = new AgentMessageRequest(
-                "Please try resetting your password.",
-                false);
+                "Please try resetting your password.", false);
 
-        when(agentTicketService.addMessage(123L, user, request))
-                .thenReturn(2L);
+        AgentMessageResponse response = new AgentMessageResponse(
+                2L,
+                MessageSenderType.STAFF,
+                "Agent Smith",
+                "Please try resetting your password.",
+                false,
+                LocalDateTime.now());
+
+        when(agentTicketService.addMessage(123L, userId, organizationId, "Agent Smith", request))
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/agent/tickets/123/messages")
                         .with(user(principal))
@@ -147,9 +154,13 @@ public class AgentTicketControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("2"));
+                .andExpect(jsonPath("$.messageId").value(2))
+                .andExpect(jsonPath("$.senderType").value("STAFF"))
+                .andExpect(jsonPath("$.senderName").value("Agent Smith"))
+                .andExpect(jsonPath("$.body").value("Please try resetting your password."))
+                .andExpect(jsonPath("$.isInternalNote").value(false));
 
-        verify(agentTicketService).addMessage(123L, user, request);
+        verify(agentTicketService).addMessage(123L, userId, organizationId, "Agent Smith", request);
     }
 
     @Test
@@ -169,19 +180,15 @@ public class AgentTicketControllerTest {
     }
 
     @Test
-    void changeStatus_withValidRequest_shouldReturnOk() throws Exception {
-        when(agentTicketService.changeStatus(123L, user, TicketStatus.RESOLVED))
-                .thenReturn(123L);
-
+    void changeStatus_withValidRequest_shouldReturnNoContent() throws Exception {
         mockMvc.perform(patch("/api/agent/tickets/123/status")
                         .with(user(principal))
                         .with(csrf())
                         .param("targetStatus", "RESOLVED"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("123"));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
-        verify(agentTicketService).changeStatus(123L, user, TicketStatus.RESOLVED);
+        verify(agentTicketService).changeStatus(123L, userId, organizationId, TicketStatus.RESOLVED);
     }
 
     @Test
@@ -199,33 +206,36 @@ public class AgentTicketControllerTest {
     }
 
     @Test
-    void assignAgent_withValidAgentId_shouldReturnTicketId() throws Exception {
-        when(agentTicketService.assignAgent(123L, user, 456L))
-                .thenReturn(123L);
-
+    void assignAgent_withValidAgentId_shouldReturnNoContent() throws Exception {
         mockMvc.perform(patch("/api/agent/tickets/123/assignedAgent")
                         .with(user(principal))
                         .with(csrf())
                         .param("targetAgentId", "456"))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("123"));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
-        verify(agentTicketService).assignAgent(123L, user, 456L);
+        verify(agentTicketService).assignAgent(123L, organizationId, 456L);
     }
 
     @Test
     void assignAgent_withoutAgentId_shouldUnassignAgent() throws Exception {
-        when(agentTicketService.assignAgent(123L, user, null))
-                .thenReturn(123L);
-
         mockMvc.perform(patch("/api/agent/tickets/123/assignedAgent")
                         .with(user(principal))
                         .with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("123"));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
-        verify(agentTicketService).assignAgent(123L, user, null);
+        verify(agentTicketService).assignAgent(123L, organizationId, null);
+    }
+
+    @Test
+    void markAsRead_shouldReturnNoContent() throws Exception {
+        mockMvc.perform(patch("/api/agent/tickets/123/read")
+                        .with(user(principal))
+                        .with(csrf()))
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
+
+        verify(agentTicketService).markAsRead(123L, organizationId);
     }
 }

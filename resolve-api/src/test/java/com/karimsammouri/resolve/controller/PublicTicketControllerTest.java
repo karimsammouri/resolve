@@ -3,8 +3,11 @@ package com.karimsammouri.resolve.controller;
 import com.karimsammouri.resolve.config.SecurityConfig;
 import com.karimsammouri.resolve.dto.request.AddMessageRequest;
 import com.karimsammouri.resolve.dto.request.CreateTicketRequest;
+import com.karimsammouri.resolve.dto.response.CreateTicketResponse;
 import com.karimsammouri.resolve.dto.response.ViewMessageResponse;
 import com.karimsammouri.resolve.dto.response.ViewTicketResponse;
+import com.karimsammouri.resolve.enums.MessageSenderType;
+import com.karimsammouri.resolve.enums.TicketStatus;
 import com.karimsammouri.resolve.exception.InvalidTicketAccessException;
 import com.karimsammouri.resolve.service.PublicTicketService;
 import org.junit.jupiter.api.Test;
@@ -48,15 +51,23 @@ public class PublicTicketControllerTest {
                 "I cannot access my account"
         );
 
+        CreateTicketResponse response = new CreateTicketResponse(
+                123L,
+                "Unable to log in",
+                TicketStatus.OPEN,
+                LocalDateTime.now());
+
         when(publicTicketService.createTicket("acme", request))
-                .thenReturn(123L);
+                .thenReturn(response);
 
         mockMvc.perform(post("/api/public/organizations/acme/tickets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("123"));
+                .andExpect(jsonPath("$.ticketId").value(123))
+                .andExpect(jsonPath("$.subject").value("Unable to log in"))
+                .andExpect(jsonPath("$.status").value("OPEN"));
 
         verify(publicTicketService).createTicket("acme", request);
     }
@@ -84,7 +95,7 @@ public class PublicTicketControllerTest {
     void viewTicket_withValidToken_shouldReturnTicket() throws Exception {
         ViewMessageResponse messageResponse = new ViewMessageResponse(
                 1L,
-                "CUSTOMER",
+                MessageSenderType.CUSTOMER,
                 "John Doe",
                 "I cannot log in",
                 LocalDateTime.of(2026, 11, 7, 10, 0));
@@ -92,7 +103,7 @@ public class PublicTicketControllerTest {
         ViewTicketResponse ticketResponse = new ViewTicketResponse(
                 123L,
                 "Unable to log in",
-                "OPEN",
+                TicketStatus.OPEN,
                 "John Doe",
                 "john@example.com",
                 List.of(messageResponse));
@@ -131,7 +142,14 @@ public class PublicTicketControllerTest {
     void addMessage_withValidRequest_shouldReturnCreated() throws Exception {
         AddMessageRequest request = new AddMessageRequest("I still cannot log in");
 
-        when(publicTicketService.addMessage(123L, "valid-token", request)).thenReturn(1L);
+        ViewMessageResponse response = new ViewMessageResponse(
+                1L,
+                MessageSenderType.CUSTOMER,
+                "John Doe",
+                "I still cannot log in",
+                LocalDateTime.now());
+
+        when(publicTicketService.addMessage(123L, "valid-token", request)).thenReturn(response);
 
         mockMvc.perform(post("/api/public/tickets/123/messages")
                         .param("token", "valid-token")
@@ -139,7 +157,10 @@ public class PublicTicketControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("1"));
+                .andExpect(jsonPath("$.messageId").value(1))
+                .andExpect(jsonPath("$.senderType").value("CUSTOMER"))
+                .andExpect(jsonPath("$.senderName").value("John Doe"))
+                .andExpect(jsonPath("$.body").value("I still cannot log in"));
 
         verify(publicTicketService).addMessage(123L, "valid-token", request);
     }

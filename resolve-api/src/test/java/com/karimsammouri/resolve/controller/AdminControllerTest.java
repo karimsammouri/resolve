@@ -1,11 +1,10 @@
 package com.karimsammouri.resolve.controller;
 
 import com.karimsammouri.resolve.config.SecurityConfig;
+import com.karimsammouri.resolve.config.SpringDataWebConfig;
 import com.karimsammouri.resolve.dto.request.CreateUserRequest;
 import com.karimsammouri.resolve.dto.request.UpdateUserRequest;
 import com.karimsammouri.resolve.dto.response.ViewUserResponse;
-import com.karimsammouri.resolve.entity.Organization;
-import com.karimsammouri.resolve.entity.User;
 import com.karimsammouri.resolve.enums.UserRole;
 import com.karimsammouri.resolve.exception.DuplicateResourceException;
 import com.karimsammouri.resolve.exception.ResourceNotFoundException;
@@ -22,10 +21,12 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.ObjectMapper;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.mockito.Mockito.*;
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @EnableWebSecurity
 @WebMvcTest(AdminController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, SpringDataWebConfig.class})
 public class AdminControllerTest {
     @Autowired
     private MockMvc mockMvc;
@@ -47,19 +48,19 @@ public class AdminControllerTest {
     @MockitoBean
     private AdminService adminService;
 
-    private User user;
+    private Long adminId;
+    private Long organizationId;
     private ResolveUserDetails principal;
 
     @BeforeEach
     void setup() {
-        user = new User(
-                "Admin Smith",
-                "admin@acme.com",
-                "hashed-password",
-                UserRole.ADMINISTRATOR,
-                mock(Organization.class));
+        adminId = 1L;
+        organizationId = 10L;
+        principal = mock(ResolveUserDetails.class);
 
-        principal = new ResolveUserDetails(user);
+        when(principal.getId()).thenReturn(adminId);
+        when(principal.getOrganizationId()).thenReturn(organizationId);
+        doReturn(List.of(new SimpleGrantedAuthority("ROLE_ADMINISTRATOR"))).when(principal).getAuthorities();
     }
 
     @Test
@@ -68,10 +69,17 @@ public class AdminControllerTest {
                 "John Doe",
                 "john@example.com",
                 "password123",
-                UserRole.AGENT
-        );
+                UserRole.AGENT);
 
-        when(adminService.createUser(user, request)).thenReturn(456L);
+        ViewUserResponse response = new ViewUserResponse(
+                456L,
+                "John Doe",
+                "john@example.com",
+                UserRole.AGENT,
+                true,
+                LocalDateTime.now());
+
+        when(adminService.createUser(organizationId, request)).thenReturn(response);
 
         mockMvc.perform(post("/api/admin/users")
                         .with(user(principal))
@@ -80,9 +88,13 @@ public class AdminControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("456"));
+                .andExpect(jsonPath("$.userId").value(456))
+                .andExpect(jsonPath("$.name").value("John Doe"))
+                .andExpect(jsonPath("$.email").value("john@example.com"))
+                .andExpect(jsonPath("$.role").value("AGENT"))
+                .andExpect(jsonPath("$.isEnabled").value(true));
 
-        verify(adminService).createUser(user, request);
+        verify(adminService).createUser(organizationId, request);
     }
 
     @Test
@@ -91,10 +103,10 @@ public class AdminControllerTest {
                 "John Doe",
                 "john@example.com",
                 "password123",
-                UserRole.AGENT
-        );
+                UserRole.AGENT);
 
-        when(adminService.createUser(user, request)).thenThrow(new DuplicateResourceException("Email already exists"));
+        when(adminService.createUser(organizationId, request))
+                .thenThrow(new DuplicateResourceException("Email already exists"));
 
         mockMvc.perform(post("/api/admin/users")
                         .with(user(principal))
@@ -105,7 +117,7 @@ public class AdminControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.message").value("Email already exists"));
 
-        verify(adminService).createUser(user, request);
+        verify(adminService).createUser(organizationId, request);
     }
 
     @Test
@@ -113,7 +125,7 @@ public class AdminControllerTest {
         Pageable pageable = PageRequest.of(0, 5);
         Page<ViewUserResponse> page = new PageImpl<>(List.of(), pageable, 0);
 
-        when(adminService.viewUsers(user, pageable)).thenReturn(page);
+        when(adminService.viewUsers(organizationId, pageable)).thenReturn(page);
 
         mockMvc.perform(get("/api/admin/users")
                         .with(user(principal))
@@ -121,37 +133,32 @@ public class AdminControllerTest {
                         .param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.number").value(0))
-                .andExpect(jsonPath("$.size").value(5))
-                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.size").value(5))
+                .andExpect(jsonPath("$.page.totalElements").value(0))
                 .andExpect(jsonPath("$.content").isEmpty());
 
-        verify(adminService).viewUsers(user, pageable);
+        verify(adminService).viewUsers(organizationId, pageable);
     }
 
     @Test
-    void updateUser_withValidRequest_shouldReturnOk() throws Exception {
+    void updateUser_withValidRequest_shouldReturnNoContent() throws Exception {
         UpdateUserRequest request = new UpdateUserRequest(
                 "Jane Doe",
                 null,
                 null,
                 null,
-                null
-        );
-
-        when(adminService.updateUser(123L, user, request))
-                .thenReturn(123L);
+                null);
 
         mockMvc.perform(patch("/api/admin/users/123")
                         .with(user(principal))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(content().string("123"));
+                .andExpect(status().isNoContent())
+                .andExpect(content().string(""));
 
-        verify(adminService).updateUser(123L, user, request);
+        verify(adminService).updateUser(123L, adminId, organizationId, request);
     }
 
     @Test
@@ -161,11 +168,10 @@ public class AdminControllerTest {
                 null,
                 null,
                 null,
-                null
-        );
+                null);
 
-        when(adminService.updateUser(999L, user, request))
-                .thenThrow(new ResourceNotFoundException("User not found"));
+        doThrow(new ResourceNotFoundException("User not found"))
+                .when(adminService).updateUser(999L, adminId, organizationId, request);
 
         mockMvc.perform(patch("/api/admin/users/999")
                         .with(user(principal))
@@ -176,6 +182,6 @@ public class AdminControllerTest {
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$.message").value("User not found"));
 
-        verify(adminService).updateUser(999L, user, request);
+        verify(adminService).updateUser(999L, adminId, organizationId, request);
     }
 }
