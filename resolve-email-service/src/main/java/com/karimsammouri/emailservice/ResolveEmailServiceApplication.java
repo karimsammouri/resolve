@@ -5,9 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class ResolveEmailServiceApplication {
-
     public static void main(String[] args) {
         SpringApplication.run(ResolveEmailServiceApplication.class, args);
     }
-
 }

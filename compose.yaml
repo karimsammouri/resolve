@@ -95,7 +95,10 @@ services:
 
 volumes:
   resolve-mysql-data:
-    external: true
+    name: resolve-mysql-data
   resolve-rabbitmq-data:
+    name: resolve-rabbitmq-data
   resolve-prometheus-data:
+    name: resolve-prometheus-data
   resolve-grafana-data:
+    name: resolve-grafana-data

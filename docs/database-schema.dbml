@@ -1,0 +1,85 @@
+Enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  ARCHIVED
+}
+
+Enum MessageSenderType {
+  CUSTOMER
+  STAFF
+}
+
+Enum UserRole {
+  AGENT
+  ADMINISTRATOR
+}
+
+Table organization {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  slug varchar(255) [not null, unique]
+  created_at datetime(6) [not null]
+}
+
+Table user {
+  id bigint [pk, increment]
+  name varchar(255) [not null]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  role UserRole [not null]
+  organization_id bigint [not null]
+  is_enabled bit(1) [not null]
+  created_at datetime(6) [not null]
+}
+
+Table ticket {
+  id bigint [pk, increment]
+  subject varchar(255) [not null]
+  status TicketStatus [not null]
+  customer_name varchar(255) [not null]
+  customer_email varchar(255) [not null]
+  organization_id bigint [not null]
+  assigned_agent_id bigint
+  has_unread_customer_message bit(1) [not null]
+  created_at datetime(6) [not null]
+  updated_at datetime(6) [not null]
+  resolved_at datetime(6)
+}
+
+Table message {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  sender_type MessageSenderType [not null]
+  sender_user_id bigint
+  sender_name varchar(255) [not null]
+  body varchar(255) [not null]
+  is_internal_note bit(1) [not null]
+  created_at datetime(6) [not null]
+}
+
+Table ticket_status_history {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  old_status TicketStatus [not null]
+  new_status TicketStatus [not null]
+  updated_by_user_id bigint
+  changed_at datetime(6) [not null]
+}
+
+Table customer_ticket_access {
+  id bigint [pk, increment]
+  ticket_id bigint [not null]
+  token_hash varchar(255) [not null, unique]
+  created_at datetime(6) [not null]
+  revoked_at datetime(6)
+}
+
+Ref: user.organization_id > organization.id
+Ref: ticket.organization_id > organization.id
+Ref: ticket.assigned_agent_id > user.id
+Ref: message.ticket_id > ticket.id
+Ref: message.sender_user_id > user.id
+Ref: ticket_status_history.ticket_id > ticket.id
+Ref: ticket_status_history.updated_by_user_id > user.id
+Ref: customer_ticket_access.ticket_id > ticket.id
