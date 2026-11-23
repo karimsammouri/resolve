@@ -122,8 +122,8 @@ Spring Security provides authentication and role-based authorization, while serv
 organization boundaries. A dedicated `ResolveUserDetails` adapter implements Spring Security's `UserDetails` instead of 
 coupling the JPA `User` entity directly to the security framework.
 
-Staff passwords are securely hashed using BCrypt, while cryptographically random customer access tokens are hashed using 
-SHA-256 before database storage.
+Staff passwords are securely hashed using BCrypt, while cryptographically random customer access tokens are hashed 
+using SHA-256 before database storage.
 
 ### RabbitMQ Asynchronous Email Notifications
 Email notifications are published to RabbitMQ and processed by `resolve-email-service`, keeping SMTP operations outside 
@@ -132,8 +132,8 @@ the primary API request path.
 The messaging configuration includes a durable direct exchange and queue, publisher confirms and 
 unroutable-message returns, consumer retries with exponential backoff, and dead-letter handling.
 
-RabbitMQ was chosen over an in-process `@Async` task because a broker can retain queued work across application restarts
-and support independent consumers.
+RabbitMQ was chosen over an in-process `@Async` task because a broker can retain queued work across application 
+restarts and support independent consumers.
 
 Extracting email delivery into a separate application also provided experience with service boundaries and independent 
 failure handling. For Resolve's purpose, a modular monolith could be simpler. The separate service is retained as a 
@@ -168,8 +168,8 @@ role.
 
 ### Database Performance and Indexing
 I profiled Resolve against a MySQL dataset containing 100,000 tickets, using concurrent requests (from Postman's load 
-testing feature) to examine throughput and latency. Hibernate SQL logging and MySQL `EXPLAIN ANALYZE` helped identify query behavior and guide indexing 
-decisions.
+testing feature) to examine throughput and latency. Hibernate SQL logging and MySQL `EXPLAIN ANALYZE` helped identify 
+query behavior and guide indexing decisions.
 
 Composite indexes support common access patterns:
 ```sql
@@ -215,7 +215,8 @@ cd resolve
 ```
 
 ### 2. Configure the environment
-Create a `.env` file in the repository root with the environment variables referenced by `compose.yaml`. These include MySQL, RabbitMQ, and Mailtrap credentials.
+Create a `.env` file in the repository root with the environment variables referenced by `compose.yaml`. These include 
+MySQL, RabbitMQ, and Mailtrap credentials.
 
 ### 3. Start the stack
 ```bash
@@ -226,8 +227,9 @@ The Docker Compose configuration is intended to run the application services and
 Consult `compose.yaml` for the exact services, ports, environment variables, and volumes used.
 
 ### 4. Exercise the API
-Use Postman or another HTTP client to create an organization-scoped ticket, authenticate as a staff member, and test the
-ticket-management endpoints. Customer ticket access requires the token issued during ticket creation and notification.
+Use Postman or another HTTP client to create an organization-scoped ticket, authenticate as a staff member, and test 
+the ticket-management endpoints. Customer ticket access requires the token issued during ticket creation and 
+notification.
 
 ### 5. Inspect Monitoring
 Use the Prometheus and Grafana services defined in Compose to inspect application metrics.
@@ -236,5 +238,5 @@ Use the Prometheus and Grafana services defined in Compose to inspect applicatio
 - Frontend interface.
 - Agent user ability to search across organization-scoped tickets and messages.
 - Expose selected operations through an MCP server for agentic AI workflows.
-- Implement LLM chat assistance and organization-specific document knowledge retrieval using retrieval-augmented generation 
-(RAG).
+- Implement LLM chat assistance and organization-specific document knowledge retrieval using retrieval-augmented 
+generation (RAG).
